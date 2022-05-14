@@ -16,3 +16,6 @@ class BDDConfig:
 
   def get_stop_gps_speed(self):
     return self.__config['stopGPSSpeed']
+  
+  def get_max_files_to_read(self):
+    return self.__config['maxReadFiles']
