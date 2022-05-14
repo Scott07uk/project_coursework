@@ -1,4 +1,5 @@
 {
-  "infoDir": "D:/data/download/bdd100k/info/100k",
-  "stopGPSSpeed": 3
+  "infoDir": "/mnt/usb/bdd/bdd100k/info/100k",
+  "stopGPSSpeed": 3,
+  "maxReadFiles": 10
 }
