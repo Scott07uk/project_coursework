@@ -1,5 +1,7 @@
 {
   "infoDir": "/mnt/usb/bdd/bdd100k/info/100k",
-  "stopGPSSpeed": 3,
-  "maxReadFiles": 10
+  "videoDir": "/mnt/usb/bdd/bdd100k/videos",
+  "stopGPSSpeed": 0.5,
+  "minPlayTimeBeforeStop": 1000,
+  "maxReadFiles": 100000
 }
