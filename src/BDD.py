@@ -1,5 +1,8 @@
 import json
 import pathlib
+from sys import platform as _platform
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from tqdm.notebook import trange, tqdm
 
 class BDDConfig:
   def __init__(self, config_file):
@@ -35,9 +38,22 @@ class BDDConfig:
   def get_min_play_time_before_stop(self):
     '''Gets the minimum amount of time that a video must play before a stop is allowed'''
     return self.__get_value_or_default('minPlayTimeBeforeStop', 1000)
+  
+  def get_workers(self):
+    return self.__get_value_or_default('workersToUse', 1)
 
 
 DEBUG=True
 def debug(message):
   if DEBUG == True:
     print(message)
+
+def run_function_in_parallel(func, params, workers=4):
+  pool = ProcessPoolExecutor if _platform.startswith('linux') else ThreadPoolExecutor
+  with pool(max_workers=workers) as ex:
+    futures = [ex.submit(func,i) for i in params]
+    #results = [r for r in tqdm(as_completed(futures), total=len(params), leave=True)]  # results in random order
+    results = [r for r in as_completed(futures)]  # results in random order
+  res2ix = {v:k for k,v in enumerate(results)}
+  out = [results[res2ix[f]].result() for f in futures]
+  return out
