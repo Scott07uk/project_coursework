@@ -103,38 +103,79 @@ def validate_stationary_video(vid_data):
     return None
   
   for vid_segment_index in range(len(vid_data.get_stop_times())):
-    print(f'Processing segment {vid_segment_index} in {vid_data.get_absoloute_file_name()}')
-    stop = vid_data.get_stop_times()[vid_segment_index]
-    print(f'Stop times {stop.get_stop_time_ms()} start time {stop.get_start_time_ms()}, duration {stop.get_stop_duration_ms()}')
-    stop_index = get_closest_frame_to_time(frame_times, frames, stop.get_stop_time_ms())
-    start_index = get_closest_frame_to_time(frame_times, frames, stop.get_start_time_ms())
-    print(f'stop index = {stop_index}, start index = {start_index}')
-    prev_frame = cv2.cvtColor(frames[stop_index], cv2.COLOR_BGR2GRAY)
-    hsv = numpy.zeros_like(frames[stop_index])
-    hsv[...,1] = 255
-    output_frames = []
-    print(f'Going to process video {vid_data.get_absoloute_file_name()} between {stop_index} and {start_index}')
-    for index in range(stop_index + 1, start_index+1, 3):
-      #print(f'processing frame {index}')
-      next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
-      flow = cv2.calcOpticalFlowFarneback(prev_frame, next_frame, None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2, flags=0) 
-      mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])   
-      hsv[...,0] = ang*180/numpy.pi/2
-      hsv[...,2] = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX)
-      rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
-      prev_frame = next_frame
-      output_frame = numpy.hstack((cv2.cvtColor(frames[index],cv2.COLOR_BGR2RGB), rgb))
-      output_frames.append(output_frame)
-      #cv2.imwrite('/home/scott/test/' + str(index) + '.jpeg', output_frame)
-    height, width, layers = output_frames[0].shape
-    vid_size = (width, height)
-    out = cv2.VideoWriter('/home/scott/test/' + vid_data.get_file_name().replace('.mov', '-' + str(vid_segment_index) + '.mov') ,cv2.VideoWriter_fourcc(*'DIVX'), 15, vid_size)
-    for frame in output_frames:
-      out.write(frame)
-    out.release()
-    print('done')
+    process_video_segment(vid_data, vid_segment_index, frame_times, frames)
   return vid_data
 
+def process_video_segment(vid_data, vid_segment_index, frame_times, frames):
+  return process_video_segment_dense_optical_flow(vid_data, vid_segment_index, frame_times, frames)
+
+def process_video_segment_dense_optical_flow(vid_data, vid_segment_index, frame_times, frames):
+  print(f'Processing segment {vid_segment_index} in {vid_data.get_absoloute_file_name()}')
+  stop = vid_data.get_stop_times()[vid_segment_index]
+  print(f'Stop times {stop.get_stop_time_ms()} start time {stop.get_start_time_ms()}, duration {stop.get_stop_duration_ms()}')
+  stop_index = get_closest_frame_to_time(frame_times, frames, stop.get_stop_time_ms())
+  start_index = get_closest_frame_to_time(frame_times, frames, stop.get_start_time_ms())
+  print(f'stop index = {stop_index}, start index = {start_index}')
+  prev_frame = cv2.cvtColor(frames[stop_index], cv2.COLOR_BGR2GRAY)
+  hsv = numpy.zeros_like(frames[stop_index])
+  hsv[...,1] = 255
+  output_frames = []
+  print(f'Going to process video {vid_data.get_absoloute_file_name()} between {stop_index} and {start_index}')
+  for index in range(stop_index + 1, start_index+1, 3):
+    #print(f'processing frame {index}')
+    next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
+    flow = cv2.calcOpticalFlowFarneback(prev_frame, next_frame, None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2, flags=0) 
+    mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])   
+    hsv[...,0] = ang*180/numpy.pi/2
+    hsv[...,2] = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX)
+    rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
+    prev_frame = next_frame
+    output_frame = numpy.hstack((frames[index], rgb))
+    output_frames.append(output_frame)
+
+  write_video_to_filesystem(vid_data, vid_segment_index, output_frames)
+  print('done')
+
+fix_frame = lambda fr: fr[:,:,::-1]
+
+def process_video_segment_sparse_optical_flow(vid_data, vid_segment_index, frame_times, frames):
+  print(f'Processing segment {vid_segment_index} in {vid_data.get_absoloute_file_name()}')
+  stop = vid_data.get_stop_times()[vid_segment_index]
+  print(f'Stop times {stop.get_stop_time_ms()} start time {stop.get_start_time_ms()}, duration {stop.get_stop_duration_ms()}')
+  stop_index = get_closest_frame_to_time(frame_times, frames, stop.get_stop_time_ms())
+  start_index = get_closest_frame_to_time(frame_times, frames, stop.get_start_time_ms())
+  print(f'stop index = {stop_index}, start index = {start_index}')
+  prev_frame = cv2.cvtColor(frames[stop_index], cv2.COLOR_BGR2GRAY)
+  p0 = cv2.goodFeaturesToTrack(prev_frame, mask=None, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
+  output_frames = []
+  print(f'Going to process video {vid_data.get_absoloute_file_name()} between {stop_index} and {start_index}')
+  for index in range(stop_index + 1, start_index+1, 3):
+    #print(f'processing frame {index}')
+    next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
+    p1,st,_ = cv2.calcOpticalFlowPyrLK(prev_frame, next_frame, p0, None, winSize=(15,15), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+    good_new, good_old = p1[st==1], p0[st==1]
+    
+    for i,(new,old) in enumerate(zip(good_new,good_old)):
+      a,b = new.ravel()
+      c,d = old.ravel()
+      mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
+      frame = cv2.circle(frame,(a,b),5,color[i].tolist(),-1)
+    img = cv2.add(frames[index],mask)
+    output_frames.append(fix_frame(img))
+
+    prev_frame = next_frame.copy()
+    p0 = good_new.reshape(-1,1,2)
+
+  write_video_to_filesystem(vid_data, vid_segment_index, output_frames)
+  print('done')
+
+def write_video_to_filesystem(vid_data, vid_segment_index, frames):
+  height, width, layers = frames[0].shape
+  vid_size = (width, height)
+  out = cv2.VideoWriter('/home/scott/test/' + vid_data.get_file_name().replace('.mov', '-' + str(vid_segment_index) + '.mov') ,cv2.VideoWriter_fourcc(*'DIVX'), 15, vid_size)
+  for frame in frames:
+    out.write(frame)
+  out.release()
 
 def load_and_validate_info_file_wrapper(data_type_and_absoloute_path_to_info_file):
   data_type, absoloute_path_to_info_file = data_type_and_absoloute_path_to_info_file
