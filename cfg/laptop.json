@@ -1,8 +1,16 @@
 {
-  "infoDir": "/mnt/usb/bdd/bdd100k/info/100k",
-  "videoDir": "/mnt/usb/bdd/bdd100k/videos",
-  "stopGPSSpeed": 0.1,
+  "typesToLoad": ["train", "val"],
+  "infoDirs": {
+    "train": "/mnt/usb/bdd/bdd100k/info/100k",
+    "val": "/mnt/usb/bdd/bdd100k/info/100k"
+  },
+  "videoDirs":{ 
+    "train": "/mnt/usb/bdd/bdd100k/videos",
+    "val": "/mnt/usb/bdd/bdd100k/videos"
+  },
+  "stopGPSSpeed": 0.0,
   "minPlayTimeBeforeStop": 1000,
-  "maxReadFiles": 10000,
-  "workersToUse": 10
+  "minStopDurationMS": 1000,
+  "maxReadFiles": 150,
+  "workersToUse": 3
 }
