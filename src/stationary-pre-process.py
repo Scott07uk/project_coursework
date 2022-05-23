@@ -2,7 +2,8 @@
 # This file is to pre-process the data to work out if the vehicle is actually stationary
 #
 
-from BDD import BDDConfig, debug, run_function_in_parallel
+from BDD import BDDConfig, debug, run_function_in_parallel, get_video_rotation
+from os.path import exists
 import json
 import cv2
 import numpy
@@ -84,13 +85,20 @@ def validate_stationary_video(vid_data):
   if not vid_data.has_stop_times():
     return None
   #debug(f'About to load {vid_data}')
-  capture = cv2.VideoCapture(vid_data.get_absoloute_file_name())
+  video_filename = vid_data.get_absoloute_file_name()
+  if not exists(video_filename):
+    debug(f'File {video_filename} does not exist, going to skip')
+    return None
+  video_rotation = get_video_rotation(video_filename)
+  capture = cv2.VideoCapture(video_filename)
 
   frame_times = []
   frames = []
 
   while (capture.isOpened()):
     next_frame_exists, next_frame = capture.read()
+    if not video_rotation is None:
+      next_frame = cv2.rotate(next_frame, video_rotation)
     if next_frame_exists:
       frame_times.append(capture.get(cv2.CAP_PROP_POS_MSEC) + vid_data.get_start_time())
       frames.append(next_frame)
@@ -107,7 +115,10 @@ def validate_stationary_video(vid_data):
   return vid_data
 
 def process_video_segment(vid_data, vid_segment_index, frame_times, frames):
-  return process_video_segment_dense_optical_flow(vid_data, vid_segment_index, frame_times, frames)
+  USE_DENSE = False
+  if USE_DENSE:
+    return process_video_segment_dense_optical_flow(vid_data, vid_segment_index, frame_times, frames)
+  return process_video_segment_sparse_optical_flow(vid_data, vid_segment_index, frame_times, frames)
 
 def process_video_segment_dense_optical_flow(vid_data, vid_segment_index, frame_times, frames):
   print(f'Processing segment {vid_segment_index} in {vid_data.get_absoloute_file_name()}')
@@ -148,8 +159,10 @@ def process_video_segment_sparse_optical_flow(vid_data, vid_segment_index, frame
   prev_frame = cv2.cvtColor(frames[stop_index], cv2.COLOR_BGR2GRAY)
   p0 = cv2.goodFeaturesToTrack(prev_frame, mask=None, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
   output_frames = []
+  mask = numpy.zeros_like(frames[stop_index])
+  colours = numpy.random.randint(0,255,(100,3))
   print(f'Going to process video {vid_data.get_absoloute_file_name()} between {stop_index} and {start_index}')
-  for index in range(stop_index + 1, start_index+1, 3):
+  for index in range(stop_index + 1, start_index+1, 1):
     #print(f'processing frame {index}')
     next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
     p1,st,_ = cv2.calcOpticalFlowPyrLK(prev_frame, next_frame, p0, None, winSize=(15,15), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
@@ -158,10 +171,10 @@ def process_video_segment_sparse_optical_flow(vid_data, vid_segment_index, frame
     for i,(new,old) in enumerate(zip(good_new,good_old)):
       a,b = new.ravel()
       c,d = old.ravel()
-      mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
-      frame = cv2.circle(frame,(a,b),5,color[i].tolist(),-1)
-    img = cv2.add(frames[index],mask)
-    output_frames.append(fix_frame(img))
+      mask = cv2.line(mask, (a,b),(c,d), colours[i].tolist(), 2)
+      frame = cv2.circle(frames[index],(a,b),5,colours[i].tolist(),-1)
+    frame = cv2.add(frame,mask)
+    output_frames.append(frame)
 
     prev_frame = next_frame.copy()
     p0 = good_new.reshape(-1,1,2)
