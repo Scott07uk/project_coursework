@@ -3,6 +3,8 @@ import pathlib
 from sys import platform as _platform
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from tqdm.notebook import trange, tqdm
+import ffmpeg
+import cv2
 
 class BDDConfig:
   def __init__(self, config_file):
@@ -66,3 +68,20 @@ def run_function_in_parallel(func, params, workers=4):
   res2ix = {v:k for k,v in enumerate(results)}
   out = [results[res2ix[f]].result() for f in futures]
   return out
+
+def get_video_rotation(path_video_file):
+  # this returns meta-data of the video file in form of a dictionary
+  try:
+    meta_dict = ffmpeg.probe(path_video_file)
+
+    if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
+      return cv2.ROTATE_90_CLOCKWISE
+    elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
+      return cv2.ROTATE_180
+    elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
+      return cv2.ROTATE_90_COUNTERCLOCKWISE
+
+    return None
+  except ffmpeg.Error as e:
+    print(e.stderr)
+    exit()
