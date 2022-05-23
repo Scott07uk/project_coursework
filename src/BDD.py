@@ -16,11 +16,18 @@ class BDDConfig:
     else:
       return default
 
+  def get_types_to_load(self):
+    return self.__get_value_or_default('typesToLoad', ['train'])
+
   def get_info_dir(self, type):
-    return self.__config['infoDir'] + '/' + type
+    info_dirs = self.__config['infoDirs']
+    info_dir = info_dirs[type]
+    return info_dir + '/' + type
   
   def get_video_dir(self, type):
-    return self.__config['videoDir'] + '/' + type
+    video_dirs = self.__config['videoDirs']
+    video_dir = video_dirs[type]
+    return video_dir + '/' + type
 
   def get_info_dir_ls(self, type = 'train'):
     path = pathlib.Path(self.get_info_dir(type))
@@ -42,6 +49,9 @@ class BDDConfig:
   def get_workers(self):
     return self.__get_value_or_default('workersToUse', 1)
 
+  def get_min_stop_duration_ms(self):
+    return self.__get_value_or_default('minStopDurationMS', 1000)
+
 
 DEBUG=True
 def debug(message):
@@ -52,7 +62,6 @@ def run_function_in_parallel(func, params, workers=4):
   pool = ProcessPoolExecutor if _platform.startswith('linux') else ThreadPoolExecutor
   with pool(max_workers=workers) as ex:
     futures = [ex.submit(func,i) for i in params]
-    #results = [r for r in tqdm(as_completed(futures), total=len(params), leave=True)]  # results in random order
     results = [r for r in as_completed(futures)]  # results in random order
   res2ix = {v:k for k,v in enumerate(results)}
   out = [results[res2ix[f]].result() for f in futures]
