@@ -69,16 +69,21 @@ def run_function_in_parallel(func, params, workers=4):
   out = [results[res2ix[f]].result() for f in futures]
   return out
 
-def get_video_rotation(path_video_file):
+def get_video_rotation(path_video_file, debug=False):
   # this returns meta-data of the video file in form of a dictionary
   try:
     meta_dict = ffmpeg.probe(path_video_file)
-
-    if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
+    tags = meta_dict['streams'][0]['tags']
+    if not 'rotate' in tags.keys():
+      return None
+    meta_rotation = tags['rotate']
+    if debug:
+      print(f'Identified meta rotation of {meta_rotation}')
+    if int(meta_rotation) == 90:
       return cv2.ROTATE_90_CLOCKWISE
-    elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
+    elif int(meta_rotation) == 180:
       return cv2.ROTATE_180
-    elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
+    elif int(meta_rotation) == 270:
       return cv2.ROTATE_90_COUNTERCLOCKWISE
 
     return None
