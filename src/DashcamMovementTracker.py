@@ -87,7 +87,7 @@ class DashcamMovementTracker:
               should_stop = False
           if should_stop:
             #The vehicle has stopped
-            stop_time = frame_times[index - self.__shift_count_for_changes]
+            stop_time = frame_times[index - ((self.__shift_count_for_changes + 1) * 5)]
         else:
           should_start = True
           for check in range(shift_count - self.__shift_count_for_changes - 1, shift_count -1):
@@ -95,7 +95,7 @@ class DashcamMovementTracker:
               should_start = False
           if should_start:
             #The vehcile has started moving
-            stops.append((stop_time, frame_times[index - self.__shift_count_for_changes]))
+            stops.append((stop_time, frame_times[index - ((self.__shift_count_for_changes + 1) * 5)]))
             stop_time = None
 
       for tmp in range(5):
@@ -159,7 +159,7 @@ class DashcamMovementTracker:
     out.release()
 
 
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
   
