@@ -3,6 +3,7 @@ import numpy
 from BDD import get_video_rotation
 import time
 import pathlib
+from os.path import exists
 
 class DashcamMovementTracker:
   def __init__(self, track_region_width=150, shift_count_for_changes = 7, pixel_movement_thresh = 10, track_loss_threshold=0.92):
@@ -114,6 +115,8 @@ class DashcamMovementTracker:
     return stops
 
   def get_video_frames_from_file(self, file_name, debug=False):
+    if not exists(file_name):
+      return None
     video_rotation = get_video_rotation(file_name, debug=debug)
     capture = cv2.VideoCapture(file_name)
     if debug:
@@ -139,7 +142,10 @@ class DashcamMovementTracker:
     return (frame_times, frames)
 
   def get_stops_from_file(self, file_name, debug=False):
-    frame_times, frames = self.get_video_frames_from_file(file_name, debug=debug)
+    frames_and_times = self.get_video_frames_from_file(file_name, debug=debug)
+    if frames_and_times is None:
+      return None
+    frame_times, frames = frames_and_times
     return self.get_stops_from_frames(frames, frame_times, debug=debug)
 
   def write_debug_video(self, file_name):
