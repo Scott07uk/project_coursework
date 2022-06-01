@@ -53,6 +53,9 @@ class BDDConfig:
 
   def get_min_stop_duration_ms(self):
     return self.__get_value_or_default('minStopDurationMS', 1000)
+  
+  def get_meta_data_dir(self):
+    return self.__get_value_or_default('metadataDir', '')
 
 
 DEBUG=True
@@ -131,9 +134,10 @@ class StopTime:
 
 
 class BDDVideo:
-  def __init__(self, file_name, absoloute_file_name, start_time, end_time):
+  def __init__(self, file_name, absoloute_file_name, file_type, start_time, end_time):
     self.__file_name = file_name
     self.__absolute_file_name = absoloute_file_name
+    self.__file_type = file_type
     self.__start_time = start_time
     self.__end_time = end_time
     self.__stop_times = {}
@@ -142,13 +146,20 @@ class BDDVideo:
     return self.__start_time
 
   def record_stop_time(self, stop_type, stop_time, start_time):
+    raw_stop_time = stop_time
+    raw_start_time = start_time
+    if not stop_time is None:
+      raw_stop_time = raw_stop_time - self.__start_time
+    if not start_time is None:
+      raw_start_Time = raw_start_time - self.__start_time
+
+    self.record_raw_stop_time(stop_type, raw_stop_time, raw_start_time)
+
+  def record_raw_stop_time(self, stop_type, stop_time, start_time):
     '''Record a stop time in true GPS time, this will convert it to video time'''
     if not stop_type in self.__stop_times.keys():
       self.__stop_times[stop_type] = []
-    if start_time is None:
-      self.__stop_times[stop_type].append(StopTime(stop_time - self.__start_time, None, self.__end_time))
-    else:
-      self.__stop_times[stop_type].append(StopTime(stop_time - self.__start_time, start_time - self.__start_time, self.__end_time))
+    self.__stop_times[stop_type].append(StopTime(stop_time, start_time, self.__end_time))
 
   def clean_short_stops(self, min_stop_time, min_stop_duration):
     for stop_type in self.__stop_times.keys():
@@ -186,13 +197,31 @@ class BDDVideo:
   def get_start_time(self):
     return self.__start_time
 
+  def to_metadata(self):
+    output = {}
+    output['fileName'] = self.__file_name
+    output['fileType'] = self.__file_type
+    output['videoWorldStartTime'] = self.__start_time
+    output['videoWorldEndTime'] = self.__end_time
+
+    stops = {}
+    output['stops'] = stops
+
+    for stop_type in self.__stop_times.keys():
+      output_stops = []
+      for stop in self.__stop_times[stop_type]:
+        output_stops.append({'stop_time': stop.get_stop_time_ms(), 'start_time': stop.get_start_time_ms()})
+      stops[stop_type] = output_stops
+
+    return output
+
 def json_file_to_bdd_video(config, data_type, path_to_file):
   '''Loads a JSON file from BDD and converts it into the BDDVideo'''
   with open(path_to_file) as info_file_content:
     try:
       info_file = json.load(info_file_content)
       video_file = path_to_file.name.replace('json', 'mov')
-      vid_data = BDDVideo(video_file, config.get_absoloute_path_of_video(data_type, video_file), info_file['startTime'], info_file['endTime'])
+      vid_data = BDDVideo(video_file, config.get_absoloute_path_of_video(data_type, video_file), data_type, info_file['startTime'], info_file['endTime'])
       current_stop_time = None
       if 'gps' in info_file:
         for gps_loc in info_file['gps']:
