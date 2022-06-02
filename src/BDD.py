@@ -57,6 +57,9 @@ class BDDConfig:
   def get_meta_data_dir(self):
     return self.__get_value_or_default('metadataDir', '')
 
+  def get_file_limit_prefix(self):
+    return self.__get_value_or_default('fileLimitPrefix', None)
+
 
 DEBUG=True
 def debug(message):
@@ -221,6 +224,7 @@ def json_file_to_bdd_video(config, data_type, path_to_file):
     try:
       info_file = json.load(info_file_content)
       video_file = path_to_file.name.replace('json', 'mov')
+      print(video_file)
       vid_data = BDDVideo(video_file, config.get_absoloute_path_of_video(data_type, video_file), data_type, info_file['startTime'], info_file['endTime'])
       current_stop_time = None
       if 'gps' in info_file:
