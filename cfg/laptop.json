@@ -8,9 +8,10 @@
     "train": "/mnt/usb/bdd/bdd100k/videos",
     "val": "/mnt/usb/bdd/bdd100k/videos"
   },
+  "metadataDir": "/home/scott/test/json",
   "stopGPSSpeed": 0.0,
   "minPlayTimeBeforeStop": 1000,
   "minStopDurationMS": 1000,
-  "maxReadFiles": 150,
-  "workersToUse": 3
+  "maxReadFiles": 5000,
+  "workersToUse": 1
 }
