@@ -116,6 +116,7 @@ class DashcamMovementTracker:
 
   def get_video_frames_from_file(self, file_name, debug=False):
     if not exists(file_name):
+      print(f'File {file_name} does not exist, going to abort')
       return None
     video_rotation = get_video_rotation(file_name, debug=debug)
     capture = cv2.VideoCapture(file_name)
