@@ -5,7 +5,6 @@ import threading
 import uuid
 import json
 
-global processed_files
 
 def process_info_file(info_file):
   file_type, file_name = info_file
@@ -24,56 +23,47 @@ def process_info_file(info_file):
   file_processed(bdd_video.get_file_name())
 
 def file_processed(file_name):
-  file_access_lock.acquire()
-  global processed_files
   processed_files['processed_videos'].append(file_name)
-  processed_files['update_count'] += 1
-  processed_files['update_count'] = 0
   write_processed_files(processed_files)
-  file_access_lock.release()
 
 def write_processed_files(processed_files):
-  #print('write')
-  #print(processed_files)
   json_str = json.dumps(processed_files, indent = 2)
   with open(PROCESSED_FILE, "w") as outfile:
     outfile.write(json_str)
 
-if threading.current_thread() is threading.main_thread():
-  PROCESSED_FILE = 'cfg/meta-data-gen.json'
+PROCESSED_FILE = 'cfg/meta-data-gen.json'
 
-  CONFIG = BDDConfig('cfg/laptop.json')
-  WRITE_ON_UPDATES = 1
+CONFIG = BDDConfig('cfg/laptop.json')
+WRITE_ON_UPDATES = 1
 
-  processed_files = {'processed_videos': [], 'update_count': 0}
+processed_files = {'processed_videos': []}
 
-  if os.path.exists(PROCESSED_FILE):
-    with open(PROCESSED_FILE) as processed_file_content:
-      processed_files = json.load(processed_file_content)
+if os.path.exists(PROCESSED_FILE):
+  with open(PROCESSED_FILE) as processed_file_content:
+    processed_files = json.load(processed_file_content)
 
 
-  info_files_to_load = []
+info_files_to_load = []
 
-  for file_type in CONFIG.get_types_to_load():
-    for file in CONFIG.get_info_dir_ls(file_type):
+file_limit_prefix = CONFIG.get_file_limit_prefix()
+
+for file_type in CONFIG.get_types_to_load():
+  for file in CONFIG.get_info_dir_ls(file_type):
+    if file_limit_prefix is None or file.name.startswith(file_limit_prefix):
       if file.name.replace('json', 'mov') not in processed_files['processed_videos']:
         info_files_to_load.append((file_type, file))
-    
-      if (len(info_files_to_load) >= CONFIG.get_max_files_to_read()):
-        break;
+  
     if (len(info_files_to_load) >= CONFIG.get_max_files_to_read()):
       break;
+  if (len(info_files_to_load) >= CONFIG.get_max_files_to_read()):
+    break;
 
+print(f'Going to process {len(info_files_to_load)} file')
 
-file_access_lock = threading.Lock()
-
-if CONFIG.get_workers() == 1:
-  # Lets not do any threading
-  for info_file in info_files_to_load:
-    process_info_file(info_file)
-else:
-  # Lets do some multi threading
-  output = run_function_in_parallel(process_info_file, info_files_to_load, workers=CONFIG.get_workers())
+# Lets not do any threading
+for info_file in info_files_to_load:
+  print(f'Processing {info_file}')
+  process_info_file(info_file)
 
 #print('end')
 #write_processed_files()
