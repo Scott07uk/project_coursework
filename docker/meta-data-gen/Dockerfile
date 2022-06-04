@@ -4,7 +4,7 @@ RUN zypper install -y python3
 RUN zypper install -y python3-tqdm python3-ffmpeg-python python3-opencv
 RUN zypper install -y python3-numpy ffmpeg python3-pip
 RUN zypper install -y libgthread-2_0-0
-RUN pip3 install opencv-contrib-python
+RUN pip3 install opencv-contrib-python postgres
 
 WORKDIR /usr/local/meta-data-gen
 
