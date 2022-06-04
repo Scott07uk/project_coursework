@@ -4,6 +4,7 @@ import os
 import threading
 import uuid
 import json
+from postgres import Postgres
 
 
 def process_info_file(info_file):
@@ -31,39 +32,31 @@ def write_processed_files(processed_files):
   with open(PROCESSED_FILE, "w") as outfile:
     outfile.write(json_str)
 
-PROCESSED_FILE = 'cfg/meta-data-gen.json'
-
 CONFIG = BDDConfig('cfg/laptop.json')
-WRITE_ON_UPDATES = 1
 
-processed_files = {'processed_videos': []}
+db = Postgres(url='postgres://project:password@oseidon.worldsofwar.co.uk/dev')
 
-if os.path.exists(PROCESSED_FILE):
-  with open(PROCESSED_FILE) as processed_file_content:
-    processed_files = json.load(processed_file_content)
+row = db.one('SELECT * FROM video_file WHERE state = \'NEW\' LIMIT 1 FOR UPDATE', back_as='dict')
 
+while row is not None:
+  id = row['id']
+  dataset = row['dataset']
+  file_type = row['file_type']
+  file_name = row['file_name']
 
-info_files_to_load = []
+  db.run('UPDATE video_file SET state = %s WHERE id=%s', ('PENDING', id))
 
-file_limit_prefix = CONFIG.get_file_limit_prefix()
+  absoloute_file_name = CONFIG.get_absoloute_path_of_video(file_type, file_name)
 
-for file_type in CONFIG.get_types_to_load():
-  for file in CONFIG.get_info_dir_ls(file_type):
-    if file_limit_prefix is None or file.name.startswith(file_limit_prefix):
-      if file.name.replace('json', 'mov') not in processed_files['processed_videos']:
-        info_files_to_load.append((file_type, file))
+  movement_tracker = DashcamMovementTracker()
+  stops = movement_tracker.get_stops_from_file(absoloute_file_name)
   
-    if (len(info_files_to_load) >= CONFIG.get_max_files_to_read()):
-      break;
-  if (len(info_files_to_load) >= CONFIG.get_max_files_to_read()):
-    break;
+  db.run(f'DELETE FROM video_file_stop WHERE video_file_id = {id}')
 
-print(f'Going to process {len(info_files_to_load)} file')
+  if not stops is None:
+    for stop in stops:
+      db.run('INSERT INTO video_file_stop(video_file_id, stop_time_ms, start_time_ms) VALUES(%s, %s, %s)', (id, stop[0], stop[1]))
 
-# Lets not do any threading
-for info_file in info_files_to_load:
-  print(f'Processing {info_file}')
-  process_info_file(info_file)
+  db.run('UPDATE video_file SET state = %s WHERE id=%s', ('DONE', id))
 
-#print('end')
-#write_processed_files()
+  row = db.one('SELECT * FROM video_file WHERE state = \'NEW\' LIMIT 1 FOR UPDATE', back_as='dict')
