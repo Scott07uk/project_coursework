@@ -81,6 +81,26 @@ class BDDConfig:
   def get_db_url(self):
     return f'postgres://{self.get_db_user()}:{self.get_db_pass()}@{self.get_db_host()}:{self.get_db_port()}/{self.get_db_name()}'
 
+  def get_psycopg2_conn(self):
+    return f'host=\'{self.get_db_host()}\' dbname=\'{self.get_db_name()}\' user=\'{self.get_db_user()}\' password=\'{self.get_db_pass()}\''
+
+  def get_temp_dir(self):
+    return self.__get_value_or_default('tmpDir', '/home/scott/tmp')
+
+  def clean_temp(self):
+    if self.__get_value_or_default('cleanTmpDir', True):
+      self.__rm_tree(self.get_temp_dir(), True)
+
+  def __rm_tree(self, pth, parent=False):
+    pth = pathlib.Path(pth)
+    for child in pth.glob('*'):
+      if child.is_file():
+        child.unlink()
+      else:
+        self.__rm_tree(child)
+    if not parent:
+      pth.rmdir()
+
 DEBUG=True
 def debug(message):
   if DEBUG == True:
