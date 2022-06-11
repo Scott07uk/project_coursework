@@ -51,15 +51,35 @@ class BDDConfig:
   def get_workers(self):
     return self.__get_value_or_default('workersToUse', 1)
 
+  #unused
   def get_min_stop_duration_ms(self):
     return self.__get_value_or_default('minStopDurationMS', 1000)
   
+  #unused
   def get_meta_data_dir(self):
     return self.__get_value_or_default('metadataDir', '')
 
+  #unused
   def get_file_limit_prefix(self):
     return self.__get_value_or_default('fileLimitPrefix', None)
 
+  def get_db_user(self):
+    return self.__get_value_or_default('dbUser', 'project')
+  
+  def get_db_pass(self):
+    return self.__get_value_or_default('dbPass', 'password')
+
+  def get_db_host(self):
+    return self.__get_value_or_default('dbHost', 'oseidon.worldsofwar.co.uk')
+
+  def get_db_port(self):
+    return self.__get_value_or_default('dbPort', 5432)
+  
+  def get_db_name(self):
+    return self.__get_value_or_default('dbName', 'dev')
+
+  def get_db_url(self):
+    return f'postgres://{self.get_db_user()}:{self.get_db_pass()}@{self.get_db_host()}:{self.get_db_port()}/{self.get_db_name()}'
 
 DEBUG=True
 def debug(message):

@@ -1,3 +1,14 @@
+#
+# INSTRUCTIONS
+#
+# This script will use DashcamMovementTracker to identifiy when the vehicle stops and then starts again.
+# You will need access to a postgres database, this should have the sql/create_tables.sql run into it.
+# The database will need to be populated with the list of files you want to process. Once this is done
+# you can run this script on as many machines as you wish concurently, and it will use as much CPU as
+# each machine has and co-ordinate themsevles via database.
+#
+
+
 from BDD import BDDConfig, json_file_to_bdd_video, run_function_in_parallel
 from DashcamMovementTracker import DashcamMovementTracker
 import os
@@ -34,7 +45,7 @@ def write_processed_files(processed_files):
 
 CONFIG = BDDConfig('cfg/laptop.json')
 
-db = Postgres(url='postgres://project:password@oseidon.worldsofwar.co.uk/dev')
+db = Postgres(url=CONFIG.get_db_url())
 
 row = db.one('SELECT * FROM video_file WHERE state = \'NEW\' LIMIT 1 FOR UPDATE', back_as='dict')
 
