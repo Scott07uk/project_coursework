@@ -149,19 +149,19 @@ class DashcamMovementTracker:
     frame_times, frames = frames_and_times
     return self.get_stops_from_frames(frames, frame_times, debug=debug)
 
-  def write_debug_video(self, file_name):
+  def write_video(self, file_name, include_timings = False):
     height, width, layers = self.frames[0].shape
     vid_size = (width, height)
     out = cv2.VideoWriter(file_name ,cv2.VideoWriter_fourcc(*'DIVX'), self.fps, vid_size)
     moving = False
     current_stop_index = 0
-    print(f'frame count = [{len(self.frames)} stop status = {len(self.frame_stop_status)}')
     for frame_index in range(len(self.frames)):
       frame = self.frames[frame_index]
-      if self.frame_stop_status[frame_index]:
-        cv2.putText(frame, "STOPPED", (100,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,255,50), 2);
-      else:
-        cv2.putText(frame, "MOVING", (100,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,50,50), 2);
+      if include_timings:
+        if self.frame_stop_status[frame_index]:
+          cv2.putText(frame, "STOPPED", (100,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,255,50), 2);
+        else:
+          cv2.putText(frame, "MOVING", (100,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,50,50), 2);
       out.write(frame)
     out.release()
 
@@ -189,7 +189,7 @@ if DEBUG:
     stops = dashcam_movement_tracker.get_stops_from_file(absoloute_file, debug=False)
     for stop in stops:
       print(f'  Found stop between {stop[0]} and {stop[1]}')
-    dashcam_movement_tracker.write_debug_video('/home/scott/test/' + file)
+    dashcam_movement_tracker.write_video('/home/scott/test/' + file, include_timings = True)
 
   
   cv2.destroyAllWindows()
