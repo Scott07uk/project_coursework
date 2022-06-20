@@ -14,6 +14,7 @@ import torch.nn as nn
 from torchvision import transforms
 import torch
 import os
+import time
 
 #https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09+
 
@@ -32,7 +33,7 @@ seen_file_names = []
 
 db = psycopg2.connect(CONFIG.get_psycopg2_conn())
 cursor = db.cursor()
-cursor.execute("SELECT file_name, file_type, stop_time_ms, start_time_ms from video_file inner join video_file_stop on (id = video_file_id) where stop_time_ms > 0 and start_time_ms is not null AND state = 'DONE'")
+cursor.execute("SELECT file_name, file_type, stop_time_ms, start_time_ms, start_time_ms - stop_time_ms as duration from video_file inner join video_file_stop on (id = video_file_id) where stop_time_ms > 0 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms")
 row = cursor.fetchone()
 
 while row is not None:
@@ -40,9 +41,9 @@ while row is not None:
     'file_name': row[0],
     'file_type': row[1],
     'stop_time': float(row[2]),
-    'start_time': float(row[3])
+    'start_time': float(row[3]),
+    'duration': float(row[4])
   }
-  video['duration'] = float(video['start_time'] - video['stop_time'])
 
   if video['file_name'] not in seen_file_names:
     seen_file_names.append(video['file_name'])
@@ -50,6 +51,7 @@ while row is not None:
       video_valid.append(video)
     else:
       video_train.append(video)
+
 
   row = cursor.fetchone()
 
@@ -117,27 +119,32 @@ class DashcamDataset(Dataset):
 
   def video_from_frames(self, ix):
     video = self.data[ix]
+    video_file_name = video['file_name']
 
     cursor = db.cursor()
-    cursor.execute("SELECT file_name FROM video_file WHERE file_name = '" + video['file_name'] + "' FOR UPDATE")
+    cursor.execute("SELECT file_name FROM video_file WHERE file_name = '" + video_file_name + "' FOR UPDATE")
 
-    video_dir = pathlib.Path(CONFIG.get_temp_dir() + '/' + video['file_name'])
+    video_dir = pathlib.Path(CONFIG.get_temp_dir() + '/single-image/' + video_file_name)
     video_stop_time = video['stop_time']
     if not video_dir.exists():
-      movement_tracker = DashcamMovementTracker()
-      times, frames = movement_tracker.get_video_frames_from_file(CONFIG.get_absoloute_path_of_video(video['file_type'], video['file_name']))
-      if times is None:
-        print('times is none')
       video_dir.mkdir()
-      for index in range(len(times) - self.prev_frames):
-        #print(f'Checking to see if {times[index + self.prev_frames]} >= {video_stop_time}')
-        if times[index + self.prev_frames] >= video_stop_time:
-          for use_index in range(self.prev_frames):
-            output_image_name = f'{video_dir}/{use_index}.jpeg'
-            print(f'Writing {output_image_name}')
-            cv2.imwrite(output_image_name, frames[index])
-          break
+    movement_tracker = DashcamMovementTracker()
+    times, frames = movement_tracker.get_video_frames_from_file(CONFIG.get_absoloute_path_of_video(video['file_type'], video_file_name))
+    if times is None:
+      print('times is none')
+    print(f'Extracted {len(times)} times and {len(frames)} from {video_file_name}')
+    video_files_written = 0
+    for index in range(len(times) - self.prev_frames):
+      #print(f'Checking to see if {times[index + self.prev_frames]} >= {video_stop_time} ({video_file_name})')
+      if times[index + self.prev_frames] >= video_stop_time:
+        for use_index in range(self.prev_frames):
+          output_image_name = f'{video_dir}/{use_index}.jpeg'
+          #print(f'Writing {output_image_name}')
+          cv2.imwrite(output_image_name, frames[index])
+          video_files_written += 1
+        break
 
+    print(f'Video files written {video_files_written}')
     cursor.close()
 
   def __getitem__(self, ix):
@@ -147,8 +154,9 @@ class DashcamDataset(Dataset):
     image_file_index = random.randint(0, self.prev_frames - 1)
     image_file = f'{video_dir}/{image_file_index}.jpeg'
     
-    if not os.path.exists(image_file):
+    while not os.path.exists(image_file):
       self.video_from_frames(ix)
+      time.sleep(1)
     
     try:
       image = Image.open(image_file)
