@@ -189,12 +189,12 @@ class BDDVideo:
     return self.__start_time
 
   def record_stop_time(self, stop_type, stop_time, start_time):
-    raw_stop_time = stop_time
-    raw_start_time = start_time
+    raw_stop_time = None
+    raw_start_time = None
     if not stop_time is None:
-      raw_stop_time = raw_stop_time - self.__start_time
+      raw_stop_time = stop_time - self.__start_time
     if not start_time is None:
-      raw_start_Time = raw_start_time - self.__start_time
+      raw_start_time = start_time - self.__start_time
 
     self.record_raw_stop_time(stop_type, raw_stop_time, raw_start_time)
 
@@ -281,6 +281,19 @@ def json_file_to_bdd_video(config, data_type, path_to_file):
         if not current_stop_time is None:
           #Vehicle stoped in the video and did not start again
           vid_data.record_stop_time('gps', current_stop_time, None)
+
+      current_stop_time = None
+      if 'locations' in info_file:
+        for location in info_file['locations']:
+          if (location['speed'] <= config.get_stop_gps_speed()):
+            if current_stop_time is None:
+              current_stop_time = location['timestamp']
+          elif not current_stop_time is None:
+            vid_data.record_stop_time('location', current_stop_time, location['timestamp'])
+            current_stop_time = None
+        if not current_stop_time is None:
+          #Vehicle stoped in the video and did not start again
+          vid_data.record_stop_time('location', current_stop_time, None)
 
       #print(f'Cleaning [{len(vid_data.get_stop_times())}] stops')
       vid_data.clean_short_stops(config.get_min_play_time_before_stop(), config.get_min_stop_duration_ms())
