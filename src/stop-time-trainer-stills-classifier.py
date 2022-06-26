@@ -15,6 +15,12 @@ from torchvision import transforms
 import torch
 import os
 import time
+import pandas
+import matplotlib.pyplot as plt
+import seaborn as sns
+from torchmetrics import ConfusionMatrix
+import io
+import numpy
 
 #https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09+
 
@@ -88,6 +94,9 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     self.model.classifier[1] = nn.Linear(in_features=2560, out_features=2)
     #freeze_layers(self.model)
 
+    self.val_confusion = ConfusionMatrix(num_classes=2)
+    self.loss_weights = torch.FloatTensor([4.23, 5.81]).cuda()
+
   def forward(self, x):
     out = self.model(x)
     return out
@@ -97,7 +106,7 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     return optimizer
 
   def loss_function(self, logits, labels):
-    return F.cross_entropy(logits, labels)
+    return F.cross_entropy(logits, labels, weight=self.loss_weights)
 
   def training_step(self, train_batch, batch_idx):
     x, y = train_batch
@@ -111,6 +120,26 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     logits = self.forward(x)
     loss = self.loss_function(logits, y)
     self.log('val_loss', loss)
+    self.val_confusion.update(logits, y)
+    return { 'loss': loss, 'preds': logits, 'target': y}
+
+  def validation_epoch_end(self, outputs):
+    tb = self.logger.experiment
+    conf_mat = self.val_confusion.compute().detach().cpu().numpy().astype(numpy.int64)
+    df_cm = pandas.DataFrame(
+        conf_mat,
+        index=numpy.arange(2),
+        columns=numpy.arange(2))
+    plt.figure()
+    sns.set(font_scale=1.2)
+    sns.heatmap(df_cm, annot=True, annot_kws={"size": 16}, fmt='d')
+    buf = io.BytesIO()
+    plt.savefig(buf, format='jpeg')
+    buf.seek(0)
+    im = Image.open(buf)
+    im = transforms.ToTensor()(im)
+    tb.add_image("val_confusion_matrix", im, global_step=self.current_epoch)
+    self.val_confusion = ConfusionMatrix(num_classes=2).cuda()
 
 class DashcamDataset(Dataset):
   def __init__(self, data, transform):
