@@ -36,7 +36,7 @@ PCT_VALID = 0.2
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
-BATCH_SIZE = 8
+BATCH_SIZE = 2
 TEMP_DIR = CONFIG.get_temp_dir() + '/video-shorts/'
 
 video_train = []
@@ -46,7 +46,7 @@ seen_file_names = []
 
 db = psycopg2.connect(CONFIG.get_psycopg2_conn())
 cursor = db.cursor()
-cursor.execute("SELECT file_name, file_type, stop_time_ms, start_time_ms, (start_time_ms - stop_time_ms) as duration FROM video_file INNER JOIN video_file_stop ON (id = video_file_id) WHERE stop_time_ms > 4000 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms")
+cursor.execute("SELECT file_name, file_type, stop_time_ms, start_time_ms, (start_time_ms - stop_time_ms) / 1000.0 / 40.0 as duration FROM video_file INNER JOIN video_file_stop ON (id = video_file_id) WHERE stop_time_ms > 4000 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms")
 row = cursor.fetchone()
 
 while row is not None:
@@ -182,7 +182,7 @@ class DashcamStopTimeDataModule(pytorch_lightning.LightningDataModule):
           key="video",
           transform=transforms.Compose(
             [
-              UniformTemporalSubsample(8),
+              UniformTemporalSubsample(32),
               transforms.Lambda(lambda x: x / 255.0),
               Normalize(*IMAGENET_STATS),
               RandomShortSideScale(min_size=256, max_size=320),
