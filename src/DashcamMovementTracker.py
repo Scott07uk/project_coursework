@@ -149,6 +149,21 @@ class DashcamMovementTracker:
     frame_times, frames = frames_and_times
     return self.get_stops_from_frames(frames, frame_times, debug=debug)
 
+  def change_frame_rate(self, new_fps):
+    time_between_frames = 1000 / new_fps
+    new_frames = [self.frames[0]]
+    new_frame_times = [self.frame_times[0]]
+
+    for index in range(len(self.frames)):
+      if new_frame_times[-1] + time_between_frames <= self.frame_times[index]:
+        new_frames.append(self.frames[index])
+        new_frame_times.append(self.frame_times[index])
+
+    self.fps = new_fps
+    self.frames = new_frames
+    self.frame_times = new_frame_times
+      
+
   def write_video(self, file_name, include_timings = False):
     height, width, layers = self.frames[0].shape
     vid_size = (width, height)
@@ -166,9 +181,10 @@ class DashcamMovementTracker:
     out.release()
 
 
-DEBUG = False
+DEBUG_STOP_TIMES = False
+DEBUG_FRAME_RATE_CHANGE = True
 
-if DEBUG:
+if DEBUG_STOP_TIMES:
   
   DIRECTORY = '/mnt/usb/bdd/bdd100k/videos/train/'
   FILES_TO_TEST = []
@@ -191,5 +207,27 @@ if DEBUG:
       print(f'  Found stop between {stop[0]} and {stop[1]}')
     dashcam_movement_tracker.write_video('/home/scott/test/' + file, include_timings = True)
 
-  
+
+if DEBUG_FRAME_RATE_CHANGE:
+  DIRECTORY = '/mnt/usb/bdd/bdd100k/videos/train/'
+  FILES_TO_TEST = []
+
+  path = pathlib.Path(DIRECTORY)
+
+  counter = 0
+  for file in path.iterdir():
+    FILES_TO_TEST.append(file.name)
+    counter += 1
+    if counter > 1:
+      break
+
+  for file in FILES_TO_TEST:
+    for fps in range(2, 14, 2):
+      dashcam_movement_tracker = DashcamMovementTracker()
+      absoloute_file = f'{DIRECTORY}{file}'
+      print(f'Going to load file {absoloute_file}')
+      dashcam_movement_tracker.get_video_frames_from_file(absoloute_file)
+      dashcam_movement_tracker.change_frame_rate(fps)
+      dashcam_movement_tracker.write_video('/home/scott/test/' + str(fps) + '-' + file)
+
   cv2.destroyAllWindows()
