@@ -182,7 +182,7 @@ class DashcamMovementTracker:
 
 
 DEBUG_STOP_TIMES = False
-DEBUG_FRAME_RATE_CHANGE = True
+DEBUG_FRAME_RATE_CHANGE = False
 
 if DEBUG_STOP_TIMES:
   
