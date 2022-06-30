@@ -162,6 +162,41 @@ class DashcamMovementTracker:
     self.fps = new_fps
     self.frames = new_frames
     self.frame_times = new_frame_times
+
+  def to_channel_time(self, red_time = 4000, green_time = 2000):
+    single_channel_frames = []
+    new_frames = []
+    red_prev_frames = None
+    green_prev_frames = None
+    for index in range(len(self.frames)):
+      if red_prev_frames is None:
+        if self.frame_times[index] - red_time >= self.frame_times[0]:
+          red_prev_frames = index
+      if green_prev_frames is None:
+        if self.frame_times[index] - green_time >= self.frame_times[0]:
+          green_prev_frames = index
+
+      if green_prev_frames is not None and red_prev_frames is not None:
+        break
+
+    for index in range(len(self.frames)):
+      base_image = cv2.cvtColor(self.frames[index], cv2.COLOR_BGR2GRAY)
+      single_channel_frames.append(base_image.copy())
+
+      red_index = index - red_prev_frames
+      green_index = index - green_prev_frames
+
+      red = single_channel_frames[0]
+      green = single_channel_frames[0]
+      blue = base_image
+      if red_index >= 0:
+        red = single_channel_frames[red_index]
+      if green_index >= 0:
+        green = single_channel_frames[green_index]
+
+      new_image = numpy.dstack([red, green, base_image]).astype(numpy.uint8)
+      new_frames.append(new_image)
+    self.frames = new_frames
       
 
   def write_video(self, file_name, include_timings = False):
@@ -183,10 +218,12 @@ class DashcamMovementTracker:
 
 DEBUG_STOP_TIMES = False
 DEBUG_FRAME_RATE_CHANGE = False
+DEBUG_CHANNEL_TIME = True
+DIRECTORY = '/mnt/usb/bdd/bdd100k/videos/train/'
 
 if DEBUG_STOP_TIMES:
   
-  DIRECTORY = '/mnt/usb/bdd/bdd100k/videos/train/'
+  
   FILES_TO_TEST = []
 
   path = pathlib.Path(DIRECTORY)
@@ -208,8 +245,28 @@ if DEBUG_STOP_TIMES:
     dashcam_movement_tracker.write_video('/home/scott/test/' + file, include_timings = True)
 
 
+if DEBUG_CHANNEL_TIME:
+  FILES_TO_TEST = []
+
+  path = pathlib.Path(DIRECTORY)
+
+  counter = 0
+  for file in path.iterdir():
+    FILES_TO_TEST.append(file.name)
+    counter += 1
+    if counter > 10:
+      break
+
+  for file in FILES_TO_TEST:
+    dashcam_movement_tracker = DashcamMovementTracker()
+    absoloute_file = f'{DIRECTORY}{file}'
+    print(f'Going to load file {absoloute_file}')
+    dashcam_movement_tracker.get_video_frames_from_file(absoloute_file)
+    dashcam_movement_tracker.to_channel_time()
+    dashcam_movement_tracker.write_video('/home/scott/test/' + file)
+
+
 if DEBUG_FRAME_RATE_CHANGE:
-  DIRECTORY = '/mnt/usb/bdd/bdd100k/videos/train/'
   FILES_TO_TEST = []
 
   path = pathlib.Path(DIRECTORY)
@@ -230,4 +287,5 @@ if DEBUG_FRAME_RATE_CHANGE:
       dashcam_movement_tracker.change_frame_rate(fps)
       dashcam_movement_tracker.write_video('/home/scott/test/' + str(fps) + '-' + file)
 
-  cv2.destroyAllWindows()
+
+cv2.destroyAllWindows()
