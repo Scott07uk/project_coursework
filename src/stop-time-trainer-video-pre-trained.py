@@ -40,14 +40,14 @@ PCT_VALID = 0.2
 KINETICS_STATS = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 TEMP_DIR = CONFIG.get_temp_dir() + '/video-shorts/'
 SIDE_SIZE = 256
 SLOWFAST_ALPHA = 4
 CROP_SIZE = 256
 NUM_FRAMES = 32
 SAMPLING_RATE = 2
-DEFAULT_FPS = 15
+DEFAULT_FPS = 4
 DEFAULT_CLIP_DURATION = (NUM_FRAMES * SAMPLING_RATE) / DEFAULT_FPS
 
 video_train = []
@@ -137,12 +137,14 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     self.model._modules['blocks'][6] = pytorchvideo.models.head.ResNetBasicHead(
       dropout = nn.Dropout(), 
       proj=nn.Linear(in_features=2304, out_features=1),
-      output_pool = nn.IdentityLayer()
+      output_pool = nn.Identity()
     )
-    print(self.model)
+    self.final = nn.Linear(in_features=4, out_features=1)
+    #print(self.model)
 
   def forward(self, x):
     out = self.model(x)
+    out = self.final(out)
     return out
 
   def configure_optimizers(self):
@@ -150,7 +152,10 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     return optimizer
 
   def loss_function(self, y_hat, y):
-    y = y.to(torch.float32).reshape(-1, y.shape[0])
+    #print(y_hat)
+    #print(y)
+    y = y.to(torch.float32)
+    #y = y.reshape(-1, y.shape[0])
     #loss = F.l1_loss(y_hat, y)
     loss = F.mse_loss(y_hat, y)
     loss = loss.to(torch.float32)
@@ -158,13 +163,13 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     return loss
 
   def training_step(self, train_batch, batch_idx):
-    y_hat = self.model(train_batch["video"])
+    y_hat = self.forward(train_batch["video"])
     loss = self.loss_function(y_hat, train_batch["label"])
     self.log('train_loss', loss)
     return loss
 
   def validation_step(self, val_batch, batch_idx):
-    y_hat = self.model(val_batch['video'])
+    y_hat = self.forward(val_batch['video'])
     loss = self.loss_function(y_hat, val_batch['label'])
     self.log('val_loss', loss)
 
