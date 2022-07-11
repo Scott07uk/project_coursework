@@ -5,6 +5,8 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from tqdm.notebook import trange, tqdm
 import ffmpeg
 import cv2
+import psycopg2
+import random
 
 class BDDConfig:
   def __init__(self, config_file):
@@ -302,3 +304,43 @@ def json_file_to_bdd_video(config, data_type, path_to_file):
     except json.JSONDecodeError:
       print(f'File {info_file_content} is not a valid json file, please check')
       return None
+
+def video_stops_from_database(config: BDDConfig, PCT_VALID: float = 0.2, MIN_DURATION: int = None):
+  CLASSIFIER_THRESH = 8000
+  video_train = []
+  video_valid = []
+  video_all = []
+  seen_file_names = []
+  random.seed(42)
+  db = psycopg2.connect(config.get_psycopg2_conn())
+  cursor = db.cursor()
+  sql = "SELECT file_name, file_type, stop_time_ms, start_time_ms, (start_time_ms - stop_time_ms) as duration FROM video_file INNER JOIN video_file_stop ON (id = video_file_id) WHERE stop_time_ms > 4000 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms"
+  if MIN_DURATION is not None:
+    sql = f'{sqls} AND (start_time_ms - stop_time_ms) >= {MIN_DURATION}'
+  cursor.execute(sql)
+  row = cursor.fetchone()
+
+  while row is not None:
+    video = {
+      'file_name': row[0],
+      'file_type': row[1],
+      'stop_time': float(row[2]),
+      'start_time': float(row[3]),
+      'duration': float(row[4]),
+      'long_stop': row[4] >= CLASSIFIER_THRESH
+    }
+
+    if video['file_name'] not in seen_file_names:
+      seen_file_names.append(video['file_name'])
+      if random.random() < PCT_VALID:
+        video_valid.append(video)
+      else:
+        video_train.append(video)
+      video_all.append(video)
+
+    row = cursor.fetchone()
+
+  cursor.close()
+  db.close()
+
+  return video_train, video_valid
