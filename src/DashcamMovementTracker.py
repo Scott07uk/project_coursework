@@ -197,6 +197,19 @@ class DashcamMovementTracker:
       new_image = numpy.dstack([red, green, base_image]).astype(numpy.uint8)
       new_frames.append(new_image)
     self.frames = new_frames
+
+  def cut(self, start_time = 0, end_time = 1000):
+    new_frames = []
+    new_times = []
+    for index in range(len(self.frames)):
+      if self.frame_times[index] >= start_time:
+        if self.frame_times[index] <= end_time:
+          new_frames.append(self.frames[index])
+          new_times.append(self.frame_times[index] - start_time)
+        else:
+          break
+    self.frames = new_frames
+    self.frame_times = new_times
       
 
   def write_video(self, file_name, include_timings = False):
@@ -218,7 +231,7 @@ class DashcamMovementTracker:
 
 DEBUG_STOP_TIMES = False
 DEBUG_FRAME_RATE_CHANGE = False
-DEBUG_CHANNEL_TIME = True
+DEBUG_CHANNEL_TIME = False
 DIRECTORY = '/mnt/usb/bdd/bdd100k/videos/train/'
 
 if DEBUG_STOP_TIMES:
