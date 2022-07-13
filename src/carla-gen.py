@@ -3,12 +3,15 @@ import carla
 import time
 from DashcamMovementTracker import DashcamMovementTracker
 import cv2
+import numpy
 
 MAP = 'Town02'
 ACTOR_CLASS = 'vehicle.citroen.c3'
 ANY_VEHICLE_CLASS = 'vehicle.*'
+ANY_PERSON_CLASS = 'walker.pedestrian.*'
 CAMERA_CLASS = 'sensor.camera.rgb'
 NUM_VEHICLES = 10
+NUM_PEOPLE = 10
 CAM_FRAMES_PER_SECOND = 10
 CAM_IMAGE_SIZE_X = 1280
 CAM_IMAGE_SIZE_Y = 720
@@ -53,6 +56,22 @@ def create_vehicles(world, number = 20):
       vehicles.append(vehicle)
   return vehicles
 
+def create_people(world, number=10):
+  people = []
+  for index in range(number):
+    spawn_point = None
+    while spawn_point is None:
+      spawn_point = world.get_random_location_from_navigation()
+    
+    person_bp = get_blueprint(world, ANY_PERSON_CLASS)
+    if person_bp.has_attribute('is_invincible'):
+      person_bp.set_attribute('is_invincible', 'false')
+    person = world.try_spawn_actor(person_bp, carla.Transform(spawn_point))
+    if person is not None:
+      people.append(person)
+
+  return people
+
 def get_blueprint(world, blueprint):
   bp_list = world.get_blueprint_library().filter(blueprint)
   bp_list = random.choice(bp_list)
@@ -60,66 +79,49 @@ def get_blueprint(world, blueprint):
   return bp_list
 
 try:
-  client = carla.Client('localhost', 2000)
+  client = carla.Client('kastria.worldsofwar.co.uk', 2000)
   client.set_timeout(20.0)
   world = client.load_world(MAP)
   spawn_points = world.get_map().get_spawn_points()
   waypoint_list = world.get_map().generate_waypoints(10.0)
 
   create_vehicles(world, NUM_VEHICLES)
+  create_people(world, NUM_PEOPLE)
   time.sleep(2)
 
   actor, camera = create_actor(world)
   
-  #camera.listen(lambda image: image.save_to_disk('output/%06d.png' % image.frame))
-  #spectator = world.get_spectator()
-  #spectator.set_transform(actor.get_transform())
+  time.sleep(30)
 
-
-
-  #traffic_manager = client.get_trafficmanager(8000)
-  #traffic_manager.set_global_distance_to_leading_vehicle(2.5)
-  #settings = world.get_settings()
-  #world.apply_settings(settings)
-
-  #actor = spawn_driving_vehicle(client, world)
-  #print(actor)
-  time.sleep(5)
-
-  #camera0 = carla.Camera('CameraRGB')
-  #camera0.set_image_size(1280, 720)
-  #camera0.set_position(0.30, 0, 1.30)
-  #settings.add_sensor(camera0)
-
-  #scene = client.load_settings(settings)
-
-  #number_of_player_starts = len(scene.player_start_spots)
-  #player_start = random.randint(0, max(0, number_of_player_starts-1))
-
-  #client.start_episode(player_start)
-
-  #for frame_index in range(0, frames_per_episode):
-    #measurements, sensor_data = client.read_data()
-    #print_measurements(measurements)
-
-    #control = measurements.player_measurements.autopilot_control
-    #control.steer += random.uniform(-0.1, 0.1)
-
-    #client.send_control(control)
 finally:
   client.stop_recorder()
 
-print(captured_frames[0].raw_data)
-print(len(captured_frames))
+
+def to_bgra_array(image):
+  array = numpy.frombuffer(image.raw_data, dtype=numpy.dtype("uint8"))
+  array = numpy.reshape(array, (image.height, image.width, 4))
+  return array
+
+def to_rgb_array(image):
+  array = to_bgra_array(image)
+  # Convert BGRA to RGB.
+  array = array[:, :, :3]
+  array = array[:, :, ::-1]
+  return array
+
+#print(dir(captured_frames[0].raw_data.tobytes()))
+#print(captured_frames[0].raw_data.tobytes())
+#data = numpy.frombuffer(captured_frames[0].raw_data.tobytes(), dtype=numpy.uint8)
+#data = cv2.imdecode(data, cv2.IMREAD_COLOR)
+#print(data)
 
 movement_tracker = DashcamMovementTracker()
 movement_tracker.fps = CAM_FRAMES_PER_SECOND
 
-for index in range(min(len(captured_frames), 10)):
+for index in range(len(captured_frames)):
   captured_frame = captured_frames[index]
   print(captured_frame.frame)
-  captured_frame.save_to_disk('temp.png')
-  reloaded_image = cv2.cvtColor(cv2.imread('temp.png'), cv2.COLOR_RGBA2RGB)
+  reloaded_image = to_rgb_array(captured_frame)
   movement_tracker.frames.append(reloaded_image)
   movement_tracker.frame_times.append(captured_frame.timestamp)
 
