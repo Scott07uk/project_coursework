@@ -12,6 +12,8 @@ class DashcamMovementTracker:
     self.__pixel_movement_thresh = pixel_movement_thresh
     self.__track_loss_threshold = track_loss_threshold
     self.fps = None
+    self.frames = []
+    self.frame_times = []
 
   def get_stops_from_frames(self, frames, frame_times, debug=False):
     video_frame_shape = frames[0].shape
