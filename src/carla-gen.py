@@ -4,22 +4,31 @@ import time
 from DashcamMovementTracker import DashcamMovementTracker
 import cv2
 import numpy
+import re
 
 MAP = 'Town02'
-ACTOR_CLASS = 'vehicle.citroen.c3'
+ACTOR_CLASS = 'vehicle.ford.crown'
 ANY_VEHICLE_CLASS = 'vehicle.*'
 ANY_PERSON_CLASS = 'walker.pedestrian.*'
 CAMERA_CLASS = 'sensor.camera.rgb'
-NUM_VEHICLES = 10
+NUM_VEHICLES = 20
 NUM_PEOPLE = 10
-CAM_FRAMES_PER_SECOND = 10
+CAM_FRAMES_PER_SECOND = 20
 CAM_IMAGE_SIZE_X = 1280
 CAM_IMAGE_SIZE_Y = 720
 CAM_FIELD_OF_VIEW = 140
-CAM_RELATIVE_LOCATION = carla.Location(x=0.7, y=0.1, z=1.35)
+CAM_RELATIVE_LOCATION = carla.Location(x=2.2, y=0.0, z=1.1)
+OUTPUT_FRAMES_PER_SECOND = 15
+MOVEMENT_THRESH = 0.01
+WEATHER_BASE = 'ClearNoon'
 
 captured_frames = []
+captured_moving = []
 
+def record_video_frame(actor, image):
+  captured_frames.append(image)
+  velocity = actor.get_velocity()
+  captured_moving.append(abs(velocity.x) < MOVEMENT_THRESH and abs(velocity.y) < MOVEMENT_THRESH and abs(velocity.z) < MOVEMENT_THRESH)
 
 def create_actor(world):
   spawn_points = world.get_map().get_spawn_points()
@@ -35,24 +44,36 @@ def create_actor(world):
   camera_bp.set_attribute('fov', str(CAM_FIELD_OF_VIEW))
 
   actor = world.spawn_actor(actor_bp, spawn_point)
+  light_mask = carla.VehicleLightState.Position
+  light_mask |= carla.VehicleLightState.LowBeam
+  light_mask |= carla.VehicleLightState.HighBeam
+  
   camera = world.spawn_actor(camera_bp, carla.Transform(CAM_RELATIVE_LOCATION), attach_to=actor)
-  camera.listen(lambda image: captured_frames.append(image))
+  camera.listen(lambda image: record_video_frame(actor, image))
   
   spectator = world.get_spectator()
   spectator.set_transform(carla.Transform(spawn_point.location + CAM_RELATIVE_LOCATION, spawn_point.rotation))
 
   actor.set_autopilot(True)
+  actor.set_light_state(carla.VehicleLightState(light_mask))
   return actor, camera
 
 def create_vehicles(world, number = 20):
   spawn_points = world.get_map().get_spawn_points()
   vehicles = []
+
+  light_mask = carla.VehicleLightState.NONE
+  light_mask |= carla.VehicleLightState.Position
+  light_mask |= carla.VehicleLightState.Brake
+  light_mask |= carla.VehicleLightState.LowBeam
+
   for index in range(number):
     spawn_point = random.choice(spawn_points)
     vehicle_bp = get_blueprint(world, ANY_VEHICLE_CLASS)
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
     if vehicle is not None:
       vehicle.set_autopilot(True)
+      vehicle.set_light_state(carla.VehicleLightState(light_mask))
       vehicles.append(vehicle)
   return vehicles
 
@@ -78,12 +99,24 @@ def get_blueprint(world, blueprint):
   print(bp_list)
   return bp_list
 
+def set_weather(world):
+  weather = getattr(carla.WeatherParameters, WEATHER_BASE)
+  #weather.fog_density = 100.0
+  #weather.fog_distance = 10.0
+  #weather.precipitation = 100.0
+  #weather.precipitation_deposits = 100.
+  #weather.wind_intensity = 100.0
+  world.set_weather(weather)
+
 try:
-  client = carla.Client('kastria.worldsofwar.co.uk', 2000)
+  client = carla.Client('localhost', 2000)
   client.set_timeout(20.0)
   world = client.load_world(MAP)
-  spawn_points = world.get_map().get_spawn_points()
-  waypoint_list = world.get_map().generate_waypoints(10.0)
+  rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
+  def name(x): return ' '.join(m.group(0) for m in rgx.finditer(x))
+  presets = [x for x in dir(carla.WeatherParameters) if re.match('[A-Z].+', x)]
+  print(presets)
+  set_weather(world)
 
   create_vehicles(world, NUM_VEHICLES)
   create_people(world, NUM_PEOPLE)
@@ -91,7 +124,8 @@ try:
 
   actor, camera = create_actor(world)
   
-  time.sleep(30)
+  time.sleep(10)
+  camera.destroy()
 
 finally:
   client.stop_recorder()
@@ -109,20 +143,29 @@ def to_rgb_array(image):
   array = array[:, :, ::-1]
   return array
 
-#print(dir(captured_frames[0].raw_data.tobytes()))
-#print(captured_frames[0].raw_data.tobytes())
-#data = numpy.frombuffer(captured_frames[0].raw_data.tobytes(), dtype=numpy.uint8)
-#data = cv2.imdecode(data, cv2.IMREAD_COLOR)
-#print(data)
 
 movement_tracker = DashcamMovementTracker()
-movement_tracker.fps = CAM_FRAMES_PER_SECOND
+movement_tracker.fps = OUTPUT_FRAMES_PER_SECOND
+video_time_sec = 0.0
+captured_frame_count = len(captured_frames)
+current_frame_index = 0
+current_movement_index = 0
+while True:
+  this_frame_diff = abs(video_time_sec - captured_frames[current_frame_index].timestamp)
+  next_frame_diff = abs(video_time_sec - captured_frames[current_frame_index + 1].timestamp)
 
-for index in range(len(captured_frames)):
-  captured_frame = captured_frames[index]
-  print(captured_frame.frame)
-  reloaded_image = to_rgb_array(captured_frame)
-  movement_tracker.frames.append(reloaded_image)
-  movement_tracker.frame_times.append(captured_frame.timestamp)
+  if this_frame_diff <= next_frame_diff:
+    captured_frame = captured_frames[current_frame_index]
+    reloaded_image = to_rgb_array(captured_frame)
+    reloaded_image = cv2.cvtColor(reloaded_image, cv2.COLOR_RGB2BGR)
+    movement_tracker.frames.append(reloaded_image)
+    movement_tracker.frame_times.append(captured_frame.timestamp * 1000)  
+    movement_tracker.frame_stop_status.append(captured_moving[current_frame_index])
 
-movement_tracker.write_video('test.mp4')
+  current_frame_index += 1
+  video_time_sec += (1 / OUTPUT_FRAMES_PER_SECOND)
+
+  if current_frame_index + 1 >= captured_frame_count:
+    break
+
+movement_tracker.write_video('test.mp4', include_timings=True)

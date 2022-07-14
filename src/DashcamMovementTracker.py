@@ -14,6 +14,7 @@ class DashcamMovementTracker:
     self.fps = None
     self.frames = []
     self.frame_times = []
+    self.frame_stop_status = []
 
   def get_stops_from_frames(self, frames, frame_times, debug=False):
     video_frame_shape = frames[0].shape
