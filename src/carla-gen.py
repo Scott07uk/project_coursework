@@ -7,13 +7,14 @@ import numpy
 import re
 from BDD import BDDConfig
 import psycopg2
+import psutil
 
 CONFIG = BDDConfig('cfg/kastria-local.json')
 ACTOR_CLASS = 'vehicle.ford.crown'
 ANY_VEHICLE_CLASS = 'vehicle.*'
 ANY_PERSON_CLASS = 'walker.pedestrian.*'
 CAMERA_CLASS = 'sensor.camera.rgb'
-CAM_FRAMES_PER_SECOND = 25
+CAM_FRAMES_PER_SECOND = 15
 CAM_IMAGE_SIZE_X = 1280
 CAM_IMAGE_SIZE_Y = 720
 CAM_FIELD_OF_VIEW = 140
@@ -21,6 +22,10 @@ CAM_RELATIVE_LOCATION = carla.Location(x=2.2, y=0.0, z=1.1)
 SPECTATOR_RELATIVE_LOCATION = carla.Location(x=0, y=0.0, z=80)
 OUTPUT_FRAMES_PER_SECOND = 15
 MOVEMENT_THRESH = 0.01
+
+MEM_USAGE_CARLA = 1.5 * 1024.0 * 1024.0 * 1024.0
+MEM_USAGE_OS = 2 * 1024.0 * 1024.0 * 1024.0
+MEM_USAGE_PER_MIN = 3 * 1024 * 1024 * 1024
 
 captured_frames = []
 captured_moving = []
@@ -98,11 +103,16 @@ def get_blueprint(world, blueprint):
 
 def set_weather(settings, world):
   weather = getattr(carla.WeatherParameters, settings['weather_base'])
-  weather.fog_density = settings['fog_density']
-  weather.fog_distance = settings['fog_distance']
-  weather.precipitation = settings['precipitation']
-  weather.precipitation_deposits = settings['precipitation_deposits']
-  weather.wind_intensity = settings['wind_intensity']
+  if settings['fog_density'] is not None:
+    weather.fog_density = settings['fog_density']
+  if settings['fog_distance'] is not None:
+    weather.fog_distance = settings['fog_distance']
+  if settings['precipitation'] is not None:
+    weather.precipitation = settings['precipitation']
+  if settings['precipitation_deposits'] is not None:
+    weather.precipitation_deposits = settings['precipitation_deposits']
+  if settings['wind_intensity'] is not None:
+    weather.wind_intensity = settings['wind_intensity']
   world.set_weather(weather)
 
   light_mask = carla.VehicleLightState.NONE
@@ -200,10 +210,15 @@ def export_simulation(settings):
 
 
 
+system_memory = psutil.virtual_memory().total
+memory_for_simulation = system_memory - MEM_USAGE_OS - MEM_USAGE_CARLA
+max_simulation_sec = (memory_for_simulation / MEM_USAGE_PER_MIN) * 60.0
+
+print(f'This machine has enough memory to support a maximim simulation length of {max_simulation_sec} seconds')
 
 with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
   while True:
-    sql = 'SELECT carla_id, duration_sec, map, num_vehicles, num_people, weather_base, fog_density, fog_distance, precipitation, precipitation_deposits, wind_intensity, allocated FROM carla WHERE allocated = False LIMIT 1 FOR UPDATE'
+    sql = f'SELECT carla_id, duration_sec, map, num_vehicles, num_people, weather_base, fog_density, fog_distance, precipitation, precipitation_deposits, wind_intensity, allocated FROM carla WHERE allocated = False AND duration_sec <= {max_simulation_sec} ORDER BY duration_sec DESC LIMIT 1 FOR UPDATE'
     with db.cursor() as cursor:
       cursor.execute(sql)
       row = cursor.fetchone()
