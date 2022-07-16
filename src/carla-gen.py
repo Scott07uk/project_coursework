@@ -25,188 +25,210 @@ MOVEMENT_THRESH = 0.01
 
 MEM_USAGE_CARLA = 1.5 * 1024.0 * 1024.0 * 1024.0
 MEM_USAGE_OS = 2 * 1024.0 * 1024.0 * 1024.0
-MEM_USAGE_PER_MIN = 3 * 1024 * 1024 * 1024
+MEM_USAGE_PER_MIN = 5 * 1024 * 1024 * 1024
 
-captured_frames = []
-captured_moving = []
 
-def record_video_frame(actor, image):
-  captured_frames.append(image)
-  velocity = actor.get_velocity()
-  captured_moving.append(abs(velocity.x) < MOVEMENT_THRESH and abs(velocity.y) < MOVEMENT_THRESH and abs(velocity.z) < MOVEMENT_THRESH)
+class CarlaSimulation:
+  def __init__(self, settings):
+    self.settings = settings
+    self.captured_frames = []
+    self.captured_moving = []
 
-def create_actor(world, light_mask):
-  spawn_points = world.get_map().get_spawn_points()
-  while True:
-    spawn_point = random.choice(spawn_points)
-    if (spawn_point.rotation.yaw < 0.1) and (spawn_point.rotation.yaw > -0.1):
-      break
-  actor_bp = get_blueprint(world, ACTOR_CLASS)
-  camera_bp = get_blueprint(world, CAMERA_CLASS)
-  camera_bp.set_attribute('sensor_tick', str(1 / CAM_FRAMES_PER_SECOND))
-  camera_bp.set_attribute('image_size_x', str(CAM_IMAGE_SIZE_X))
-  camera_bp.set_attribute('image_size_y', str(CAM_IMAGE_SIZE_Y))
-  camera_bp.set_attribute('fov', str(CAM_FIELD_OF_VIEW))
+  def record_video_frame(self, actor, image):
+    self.captured_frames.append(image)
+    velocity = actor.get_velocity()
+    self.captured_moving.append(abs(velocity.x) < MOVEMENT_THRESH and abs(velocity.y) < MOVEMENT_THRESH and abs(velocity.z) < MOVEMENT_THRESH)
 
-  actor = None
-  while actor is None:
-    actor = world.try_spawn_actor(actor_bp, spawn_point)
-    time.sleep(2)
+  def create_actor(self, light_mask):
+    spawn_points = self.world.get_map().get_spawn_points()
+    while True:
+      spawn_point = random.choice(spawn_points)
+      if (spawn_point.rotation.yaw < 0.1) and (spawn_point.rotation.yaw > -0.1):
+        break
+    actor_bp = self.get_blueprint(ACTOR_CLASS)
+    camera_bp = self.get_blueprint(CAMERA_CLASS)
+    camera_bp.set_attribute('sensor_tick', str(1 / CAM_FRAMES_PER_SECOND))
+    camera_bp.set_attribute('image_size_x', str(CAM_IMAGE_SIZE_X))
+    camera_bp.set_attribute('image_size_y', str(CAM_IMAGE_SIZE_Y))
+    camera_bp.set_attribute('fov', str(CAM_FIELD_OF_VIEW))
+
+    actor = None
+    while actor is None:
+      actor = self.world.try_spawn_actor(actor_bp, spawn_point)
+      time.sleep(2)
   
-  camera = world.spawn_actor(camera_bp, carla.Transform(CAM_RELATIVE_LOCATION), attach_to=actor)
+    camera = self.world.spawn_actor(camera_bp, carla.Transform(CAM_RELATIVE_LOCATION), attach_to=actor)
   
-  spectator = world.get_spectator()
-  #spectator.set_transform(carla.Transform(spawn_point.location + CAM_RELATIVE_LOCATION, spawn_point.rotation))
-  spectator.set_transform(carla.Transform(spawn_point.location + SPECTATOR_RELATIVE_LOCATION, carla.Rotation(pitch=-90)))
+    spectator = self.world.get_spectator()
+    spectator.set_transform(carla.Transform(spawn_point.location + SPECTATOR_RELATIVE_LOCATION, carla.Rotation(pitch=-90)))
 
-  actor.set_autopilot(True)
-  actor.set_light_state(carla.VehicleLightState(light_mask))
+    actor.set_autopilot(True)
+    actor.set_light_state(carla.VehicleLightState(light_mask))
 
-  camera.listen(lambda image: record_video_frame(actor, image))
-  return actor, camera
+    camera.listen(lambda image: self.record_video_frame(actor, image))
+    return actor, camera
 
-def create_vehicles(world, number, light_mask):
-  spawn_points = world.get_map().get_spawn_points()
-  vehicles = []
+  def create_vehicles(self, light_mask):
+    number = self.settings['num_vehicles']
+    spawn_points = self.world.get_map().get_spawn_points()
+    vehicles = []
 
-  for index in range(number):
-    spawn_point = random.choice(spawn_points)
-    vehicle_bp = get_blueprint(world, ANY_VEHICLE_CLASS)
-    vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
-    if vehicle is not None:
-      vehicle.set_autopilot(True)
-      vehicle.set_light_state(carla.VehicleLightState(light_mask))
-      vehicles.append(vehicle)
-  return vehicles
+    for index in range(number):
+      spawn_point = random.choice(spawn_points)
+      vehicle_bp = self.get_blueprint(ANY_VEHICLE_CLASS)
+      vehicle = self.world.try_spawn_actor(vehicle_bp, spawn_point)
+      if vehicle is not None:
+        vehicle.set_autopilot(True)
+        vehicle.set_light_state(carla.VehicleLightState(light_mask))
+        vehicles.append(vehicle)
+    return vehicles
 
-def create_people(world, number=10):
-  people = []
-  for index in range(number):
-    spawn_point = None
-    while spawn_point is None:
-      spawn_point = world.get_random_location_from_navigation()
+  def create_people(self):
+    number = self.settings['num_people']
+    people = []
+    for index in range(number):
+      spawn_point = None
+      while spawn_point is None:
+        spawn_point = self.world.get_random_location_from_navigation()
     
-    person_bp = get_blueprint(world, ANY_PERSON_CLASS)
-    if person_bp.has_attribute('is_invincible'):
-      person_bp.set_attribute('is_invincible', 'false')
-    person = world.try_spawn_actor(person_bp, carla.Transform(spawn_point))
-    if person is not None:
-      people.append(person)
+      person_bp = self.get_blueprint(ANY_PERSON_CLASS)
+      if person_bp.has_attribute('is_invincible'):
+        person_bp.set_attribute('is_invincible', 'false')
+      person = self.world.try_spawn_actor(person_bp, carla.Transform(spawn_point))
+      if person is not None:
+        people.append(person)
 
-  return people
+    return people
 
-def get_blueprint(world, blueprint):
-  bp_list = world.get_blueprint_library().filter(blueprint)
-  bp_list = random.choice(bp_list)
-  #print(bp_list)
-  return bp_list
+  def get_blueprint(self, blueprint):
+    bp_list = self.world.get_blueprint_library().filter(blueprint)
+    bp_list = random.choice(bp_list)
+    return bp_list
 
-def set_weather(settings, world):
-  weather = getattr(carla.WeatherParameters, settings['weather_base'])
-  if settings['fog_density'] is not None:
-    weather.fog_density = settings['fog_density']
-  if settings['fog_distance'] is not None:
-    weather.fog_distance = settings['fog_distance']
-  if settings['precipitation'] is not None:
-    weather.precipitation = settings['precipitation']
-  if settings['precipitation_deposits'] is not None:
-    weather.precipitation_deposits = settings['precipitation_deposits']
-  if settings['wind_intensity'] is not None:
-    weather.wind_intensity = settings['wind_intensity']
-  world.set_weather(weather)
+  def set_weather(self):
+    weather = getattr(carla.WeatherParameters, settings['weather_base'])
+    if self.settings['fog_density'] is not None:
+      weather.fog_density = self.settings['fog_density']
+    if self.settings['fog_distance'] is not None:
+      weather.fog_distance = self.settings['fog_distance']
+    if self.settings['precipitation'] is not None:
+      weather.precipitation = self.settings['precipitation']
+    if self.settings['precipitation_deposits'] is not None:
+      weather.precipitation_deposits = self.settings['precipitation_deposits']
+    if self.settings['wind_intensity'] is not None:
+      weather.wind_intensity = self.settings['wind_intensity']
+    self.world.set_weather(weather)
 
-  light_mask = carla.VehicleLightState.NONE
-  if 'Night' in settings['weather_base']:
-    light_mask |= carla.VehicleLightState.Position
-    light_mask |= carla.VehicleLightState.LowBeam
-    light_mask |= carla.VehicleLightState.HighBeam
-    if settings['fog_distance'] < 40:
+    light_mask = carla.VehicleLightState.NONE
+    if 'Night' in settings['weather_base']:
+      light_mask |= carla.VehicleLightState.Position
+      light_mask |= carla.VehicleLightState.LowBeam
+      light_mask |= carla.VehicleLightState.HighBeam
+      if settings['fog_distance'] < 40:
+        light_mask |= carla.VehicleLightState.Fog
+    elif settings['fog_distance'] < 40:
+      light_mask |= carla.VehicleLightState.Position
+      light_mask |= carla.VehicleLightState.LowBeam
       light_mask |= carla.VehicleLightState.Fog
-  elif settings['fog_distance'] < 40:
-    light_mask |= carla.VehicleLightState.Position
-    light_mask |= carla.VehicleLightState.LowBeam
-    light_mask |= carla.VehicleLightState.Fog
 
-  return light_mask
+    return light_mask
 
+  def run_simulation(self):
+    camera = None
+    actor = None
+    client = None
+    try:
+      client = carla.Client('localhost', 2000)
+      client.set_timeout(120.0)
+      self.world = client.load_world(self.settings['map'])
+      vehicle_light_mask = self.set_weather()
 
+      self.create_vehicles(vehicle_light_mask)
+      self.create_people()
 
-def run_simulation(settings):
-  try:
-    captured_frames = []
-    captured_moving = []
-    client = carla.Client('localhost', 2000)
-    client.set_timeout(120.0)
-    world = client.load_world(settings['map'])
-    vehicle_light_mask = set_weather(settings, world)
+      time.sleep(3)
 
-    create_vehicles(world, settings['num_vehicles'], vehicle_light_mask)
-    create_people(world, settings['num_people'])
-
-    time.sleep(3)
-
-    actor, camera = create_actor(world, vehicle_light_mask)
+      actor, camera = self.create_actor(vehicle_light_mask)
   
-    time.sleep(settings['duration_sec'])
-    camera.destroy()
-    actor.destroy()
+      time.sleep(self.settings['duration_sec'])
+      return True
+    finally:
+      if camera is not None:
+        camera.destroy()
+      if actor is not None:
+        actor.destroy()
+      if client is not None:
+        client.stop_recorder()
 
-  finally:
-    client.stop_recorder()
+    return False
 
 
-def to_bgra_array(image):
-  array = numpy.frombuffer(image.raw_data, dtype=numpy.dtype("uint8"))
-  array = numpy.reshape(array, (image.height, image.width, 4))
-  return array
+  def to_bgra_array(self, image):
+    array = numpy.frombuffer(image.raw_data, dtype=numpy.dtype("uint8"))
+    array = numpy.reshape(array, (image.height, image.width, 4))
+    return array
 
-def to_rgb_array(image):
-  array = to_bgra_array(image)
-  # Convert BGRA to RGB.
-  array = array[:, :, :3]
-  array = array[:, :, ::-1]
-  return array
+  def to_rgb_array(self, image):
+    print('to_bgra_array')
+    array = self.to_bgra_array(image)
+    print('to_bgra_array - done')
+    # Convert BGRA to RGB.
+    array = array[:, :, :3]
+    array = array[:, :, ::-1]
+    return array
 
-def export_simulation(settings):
-  movement_tracker = DashcamMovementTracker()
-  movement_tracker.fps = OUTPUT_FRAMES_PER_SECOND
-  video_time_sec = 0.0
-  captured_frame_count = len(captured_frames)
-  current_frame_index = 0
-  stops = []
-  current_stop = None
-  while True:
-    this_frame_diff = abs(video_time_sec - captured_frames[current_frame_index].timestamp)
-    next_frame_diff = abs(video_time_sec - captured_frames[current_frame_index + 1].timestamp)
-
-    if this_frame_diff <= next_frame_diff:
-      captured_frame = captured_frames[current_frame_index]
-      reloaded_image = to_rgb_array(captured_frame)
-      reloaded_image = cv2.cvtColor(reloaded_image, cv2.COLOR_RGB2BGR)
-      movement_tracker.frames.append(reloaded_image)
-      movement_tracker.frame_times.append(captured_frame.timestamp * 1000)  
-      movement_tracker.frame_stop_status.append(captured_moving[current_frame_index])
-      video_time_sec += (1 / OUTPUT_FRAMES_PER_SECOND)
-      if current_stop is None:
-        if captured_moving[current_frame_index]:
-          current_stop = captured_frame.timestamp * 1000
+  def export_simulation(self):
+    movement_tracker = DashcamMovementTracker()
+    movement_tracker.fps = OUTPUT_FRAMES_PER_SECOND
+    video_time_sec = 3.0
+    captured_frame_count = len(self.captured_frames)
+    print(f'Captured {captured_frame_count} frames')
+    current_frame_index = 0
+    print('cheese')
+    stops = []
+    print('cheese1')
+    current_stop = None
+    print('cheese2')
+    while True:
+      print(str(current_frame_index))
+      this_frame_diff = abs(video_time_sec - self.captured_frames[current_frame_index].timestamp)
+      next_frame_diff = abs(video_time_sec - self.captured_frames[current_frame_index + 1].timestamp)
+      print(str(this_frame_diff) + ' vs ' + str(next_frame_diff))
+      if this_frame_diff <= next_frame_diff:
+        print('bob1')
+        captured_frame = self.captured_frames[current_frame_index]
+        #self.captured_frames[current_frame_index] = None
+        print('bob2')
+        reloaded_image = self.to_rgb_array(captured_frame)
+        print('bob3')
+        reloaded_image = cv2.cvtColor(reloaded_image, cv2.COLOR_RGB2BGR)
+        print('bob4')
+        movement_tracker.frames.append(reloaded_image)
+        print('bob5')
+        movement_tracker.frame_times.append(captured_frame.timestamp * 1000)  
+        movement_tracker.frame_stop_status.append(self.captured_moving[current_frame_index])
+        video_time_sec += (1 / OUTPUT_FRAMES_PER_SECOND)
+        if current_stop is None:
+          if self.captured_moving[current_frame_index]:
+            current_stop = captured_frame.timestamp * 1000
+        else:
+          if not self.captured_moving[current_frame_index]:
+            stops.append((current_stop, captured_frame.timestamp * 1000))
+            current_stop = None
       else:
-        if not captured_moving[current_frame_index]:
-          stops.append((current_stop, captured_frame.timestamp * 1000))
-          current_stop = None
-    else:
-      captured_frames[current_frame_index] = None
-      current_frame_index += 1
+        print(dir(self.captured_frames[current_frame_index]))
+        self.captured_frames[current_frame_index] = None
+        current_frame_index += 1
 
-    if current_frame_index + 1 >= captured_frame_count:
-      break
+      if current_frame_index + 1 >= captured_frame_count:
+        break
 
-  print(f'Processed {captured_frame_count} frames for {video_time_sec} seconds of video with {len(movement_tracker.frames)} frames')
-  if current_stop is not None:
-    stops.append((current_stop, None))
-  movement_tracker.write_video(CONFIG.get_windows_temp_dir() + '/carla/' + str(settings['carla_id']) + '.mp4', include_timings=False)
+    print(f'Processed {captured_frame_count} frames for {video_time_sec} seconds of video with {len(movement_tracker.frames)} frames')
+    if current_stop is not None:
+      stops.append((current_stop, None))
+    movement_tracker.write_video(CONFIG.get_windows_temp_dir() + '/carla/' + str(settings['carla_id']) + '.mp4', include_timings=False)
 
-  return stops
+    return stops
 
 
 
@@ -219,11 +241,13 @@ print(f'This machine has enough memory to support a maximim simulation length of
 with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
   while True:
     sql = f'SELECT carla_id, duration_sec, map, num_vehicles, num_people, weather_base, fog_density, fog_distance, precipitation, precipitation_deposits, wind_intensity, allocated FROM carla WHERE allocated = False AND duration_sec <= {max_simulation_sec} ORDER BY duration_sec DESC LIMIT 1 FOR UPDATE'
+    settings = {}
     with db.cursor() as cursor:
       cursor.execute(sql)
       row = cursor.fetchone()
 
       if row is None:
+        print('No more simulations to process')
         break
       sql = 'UPDATE carla SET allocated = True WHERE carla_id = ' + str(row[0])
       cursor.execute(sql)
@@ -245,11 +269,13 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
         'allocated': row[11]
       }
 
-      captured_frames = []
-      captured_moving = []
-      run_simulation(settings)
-      stops = export_simulation(settings)
-      
+    print('Running simulation ' + str(settings['carla_id']))
+    simulation = CarlaSimulation(settings)
+    successful = simulation.run_simulation()
+    print('Simulation ' + str(settings['carla_id']) + ' Complete, success = ' + str(successful))
+    stops = simulation.export_simulation()
+    
+    with db.cursor() as cursor:
       for stop in stops:
         sql = 'INSERT INTO carla_stop(carla_id, stop_time_ms, start_time_ms) VALUES(' + str(settings['carla_id']) + ', ' + str(stop[0]) +', '
         if stop[1] is None:
@@ -259,3 +285,8 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
         sql = sql + ')'
 
         cursor.execute(sql)
+
+    stops = None
+    simulation = None
+
+print('Finishing')
