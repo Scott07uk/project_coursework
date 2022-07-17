@@ -107,5 +107,87 @@ INSERT INTO carla(duration_sec, map, num_vehicles, num_people,
                   weather_base, fog_density, fog_distance, wind_intensity, allocated)
 VALUES(300, 'Town01', 80, 100, 'WetNight', 30, 60, 0, False);
 
+-- Noon
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'ClearNoon', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'ClearNoon', 30, 60, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'ClearNoon', 80, 20, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'CloudyNoon', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'CloudyNoon', 30, 60, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'HardRainNoon', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'MidRainyNoon', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'SoftRainNoon', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'WetNoon', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 40, 50, 'WetNoon', 30, 60, 0, False);
+
+
+-- Sunset Quite
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'ClearSunset', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'ClearSunset', 30, 60, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'ClearSunset', 80, 20, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'CloudySunset', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'CloudySunset', 30, 60, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'HardRainSunset', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'MidRainSunset', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'SoftRainSunset', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'WetSunset', 0, 0, 0, False);
+
+INSERT INTO carla(duration_sec, map, num_vehicles, num_people, 
+                  weather_base, fog_density, fog_distance, wind_intensity, allocated)
+VALUES(300, 'Town01', 20, 40, 'WetNight', 30, 60, 0, False);
 
 UPDATE carla SET duration_sec = 30;
