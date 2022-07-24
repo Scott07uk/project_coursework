@@ -14,7 +14,7 @@
   "minStopDurationMS": 1000,
   "maxReadFiles": 5000,
   "workersToUse": 1,
-  "dbHost": "localhost",
+  "dbHost": "oseidon.worldsofwar.co.uk",
   "tmpDir": "/mnt/ssd/scott/temp",
   "cleanTmpDir": false
 }
