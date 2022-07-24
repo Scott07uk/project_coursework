@@ -89,6 +89,9 @@ class BDDConfig:
   def get_temp_dir(self):
     return self.__get_value_or_default('tmpDir', '/home/scott/tmp')
 
+  def get_windows_temp_dir(self):
+    return self.__get_value_or_default('windowsTmpDir', None)
+
   def clean_temp(self):
     if self.__get_value_or_default('cleanTmpDir', True):
       self.__rm_tree(self.get_temp_dir(), True)

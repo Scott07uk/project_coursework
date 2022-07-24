@@ -12,6 +12,9 @@ class DashcamMovementTracker:
     self.__pixel_movement_thresh = pixel_movement_thresh
     self.__track_loss_threshold = track_loss_threshold
     self.fps = None
+    self.frames = []
+    self.frame_times = []
+    self.frame_stop_status = []
 
   def get_stops_from_frames(self, frames, frame_times, debug=False):
     video_frame_shape = frames[0].shape
@@ -216,8 +219,6 @@ class DashcamMovementTracker:
     height, width, layers = self.frames[0].shape
     vid_size = (width, height)
     out = cv2.VideoWriter(file_name ,cv2.VideoWriter_fourcc(*'DIVX'), self.fps, vid_size)
-    moving = False
-    current_stop_index = 0
     for frame_index in range(len(self.frames)):
       frame = self.frames[frame_index]
       if include_timings:

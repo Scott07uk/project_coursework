@@ -16,5 +16,6 @@
   "workersToUse": 1,
   "dbHost": "oseidon.worldsofwar.co.uk",
   "tmpDir": "/mnt/ssd/scott/temp",
-  "cleanTmpDir": false
+  "cleanTmpDir": false,
+  "windowsTmpDir": "D:\\data\\"
 }
