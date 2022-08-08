@@ -319,7 +319,7 @@ def video_stops_from_database(config: BDDConfig, PCT_VALID: float = 0.2, MIN_DUR
   cursor = db.cursor()
   sql = "SELECT file_name, file_type, stop_time_ms, start_time_ms, (start_time_ms - stop_time_ms) as duration FROM video_file INNER JOIN video_file_stop ON (id = video_file_id) WHERE stop_time_ms > 4000 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms"
   if MIN_DURATION is not None:
-    sql = f'{sqls} AND (start_time_ms - stop_time_ms) >= {MIN_DURATION}'
+    sql = f'{sql} AND (start_time_ms - stop_time_ms) >= {MIN_DURATION}'
   cursor.execute(sql)
   row = cursor.fetchone()
 
@@ -330,7 +330,8 @@ def video_stops_from_database(config: BDDConfig, PCT_VALID: float = 0.2, MIN_DUR
       'stop_time': float(row[2]),
       'start_time': float(row[3]),
       'duration': float(row[4]),
-      'long_stop': row[4] >= CLASSIFIER_THRESH
+      'long_stop': row[4] >= CLASSIFIER_THRESH,
+      'type': 'BDD'
     }
 
     if video['file_name'] not in seen_file_names:
