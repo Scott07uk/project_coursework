@@ -2,7 +2,8 @@ from argparse import (
   ArgumentParser
 )
 from BDD import (
-  BDDConfig
+  BDDConfig, 
+  video_stops_from_database
 )
 from DashcamMovementTracker import (
   DashcamMovementTracker
@@ -44,7 +45,8 @@ CLASSIFIER_THRESH = 8000
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 KINETICS_STATS = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
-CLASS_WEIGHTS = [2, 1]
+CLASS_WEIGHTS = [2.1, 1]
+CLASS_WEIGHTS_COMBINED = [1.05, 1]
 FRAMES_PER_VIDEO = 8
 VIDEO_SIDE_SIZE = 256
 VIDEO_CROP_SIZE = 256
@@ -59,7 +61,9 @@ parser.add_argument('--multi-frame-train', dest='multi_frame_train', action='sto
 
 parser.add_argument('--video-train', dest='video_train', action='store_true', help='Perform the training process on a video clip')
 
-parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False)
+parser.add_argument('--use-bdd-and-carla', dest='bdd_and_carla', action='store_true', help='Perform the training process on a multi-frame images')
+
+parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, bdd_and_carla = False)
 
 args = parser.parse_args()
 
@@ -67,6 +71,7 @@ PERFORM_EXTRACT = args.perform_extract
 PERFORM_SINGLE_FRAME_TRAIN = args.single_frame_train
 PERFORM_MULTI_FRAME_TRAIN = args.multi_frame_train
 PERFORM_VIDEO_TRAIN = args.video_train
+BDD_AND_CARLA = args.bdd_and_carla
 
 sql = 'SELECT stop_id, carla_id, stop_time_ms, start_time_ms FROM carla_stop WHERE (start_time_ms - stop_time_ms) > 1000 and stop_time_ms > 8000 ORDER BY carla_id'
 
@@ -96,7 +101,8 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
         'stop_time_ms': stop_time_ms,
         'start_time_ms': start_time_ms,
         'duration': duration,
-        'duration_class': duration_class
+        'duration_class': duration_class,
+        'type': 'carla'
       }
 
       if random.random() <= PCT_VALID:
@@ -133,6 +139,32 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
 
       row = cursor.fetchone()
 
+if BDD_AND_CARLA:
+  bdd_train, bdd_valid = video_stops_from_database(CONFIG, MIN_DURATION=4000)
+
+  all_train = []
+  all_valid = []
+
+  for video in train_videos:
+    all_train.append(video)
+  for video in valid_videos:
+    all_train.append(video)
+  for video in bdd_train:
+    if video['long_stop']:
+      video['duration_class'] = 1
+    else:
+      video['duration_class'] = 0
+    all_train.append(video)
+  for video in bdd_valid:
+    if video['long_stop']:
+      video['duration_class'] = 1
+    else:
+      video['duration_class'] = 0
+    all_valid.append(video)
+
+  train_videos = all_train
+  valid_videos = all_valid
+  
 
 print(f'Training Videos = [{len(train_videos)}] validation videos = [{len(valid_videos)}]')
 
@@ -145,7 +177,10 @@ class ImageModel(pytorch_lightning.LightningModule):
     self.model.classifier = torch.nn.Linear(in_features=1024, out_features=2)
 
     self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
-    self.loss_weights = torch.FloatTensor(CLASS_WEIGHTS).cuda()
+    if BDD_AND_CARLA:
+      self.loss_weights = torch.FloatTensor(CLASS_WEIGHTS_COMBINED).cuda()
+    else:
+      self.loss_weights = torch.FloatTensor(CLASS_WEIGHTS).cuda()
 
   def forward(self, x):
     out = self.model(x)
@@ -193,9 +228,11 @@ class ImageModel(pytorch_lightning.LightningModule):
 
 class ImageDataset(Dataset):
   def __init__(self, training, single_image):
-    self.path_prefix = 'carla-still'
+    self.carla_path_prefix = 'carla-still'
+    self.bdd_path_prefix = 'single-image'
     if not single_image:
-      self.path_prefix = 'carla-multi-still'
+      self.carla_path_prefix = 'carla-multi-still'
+      self.bdd_path_prefix = 'multi-image'
 
     if training:
       self.data = train_videos
@@ -224,8 +261,13 @@ class ImageDataset(Dataset):
 
   def __getitem__(self, ix):
     video = self.data[ix]
-    image_file = CONFIG.get_temp_dir() + '/' + self.path_prefix + '/' + str(video['stop_id']) + '.jpeg'
-    image = Image.open(image_file)
+    image = None
+    if video['type'] == 'carla':
+      image_file = CONFIG.get_temp_dir() + '/' + self.carla_path_prefix + '/' + str(video['stop_id']) + '.jpeg'
+      image = Image.open(image_file)
+    else:
+      image_file = CONFIG.get_temp_dir() + '/' + self.bdd_path_prefix + '/' + video['file_name'] + '.jpeg'
+      image = Image.open(image_file)
 
     return self.transforms(image), video['duration_class'] 
 
