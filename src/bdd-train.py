@@ -45,8 +45,7 @@ CLASSIFIER_THRESH = 8000
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 KINETICS_STATS = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
-CLASS_WEIGHTS = [2.1, 1]
-CLASS_WEIGHTS_COMBINED = [1.05, 1]
+CLASS_WEIGHTS = [1, 1.87]
 FRAMES_PER_VIDEO = 8
 VIDEO_SIDE_SIZE = 256
 VIDEO_CROP_SIZE = 256
@@ -91,20 +90,20 @@ def mkdir_if_not_exists(dir):
   if not os.path.exists(dir):
     os.mkdir(dir)
 
-if PERFORM_EXTRACT:
-  VIDEO_DIR = CONFIG.get_temp_dir() + VIDEO_DIR
-  mkdir_if_not_exists(VIDEO_DIR)
-  VIDEO_DIR = VIDEO_DIR + '/'
 
-  STILL_DIR = CONFIG.get_temp_dir() + STILL_DIR
-  mkdir_if_not_exists(STILL_DIR)
-  STILL_DIR = STILL_DIR + '/'
+VIDEO_DIR = CONFIG.get_temp_dir() + VIDEO_DIR
+mkdir_if_not_exists(VIDEO_DIR)
+VIDEO_DIR = VIDEO_DIR + '/'
 
-  MULTI_STILL_DIR = CONFIG.get_temp_dir() + MULTI_STILL_DIR
-  mkdir_if_not_exists(MULTI_STILL_DIR)
-  MULTI_STILL_DIR = MULTI_STILL_DIR + '/'
+STILL_DIR = CONFIG.get_temp_dir() + STILL_DIR
+mkdir_if_not_exists(STILL_DIR)
+STILL_DIR = STILL_DIR + '/'
+
+MULTI_STILL_DIR = CONFIG.get_temp_dir() + MULTI_STILL_DIR
+mkdir_if_not_exists(MULTI_STILL_DIR)
+MULTI_STILL_DIR = MULTI_STILL_DIR + '/'
   
-
+if PERFORM_EXTRACT:
   for video in all_videos:
     orig_file_name = CONFIG.get_video_dir('train') + '/' + video['file_name']
     movement_tracker = DashcamMovementTracker()
@@ -116,7 +115,7 @@ if PERFORM_EXTRACT:
     stop_video.frame_times = movement_tracker.frame_times.copy()
     stop_video.frames = movement_tracker.frames.copy()
 
-    stop_video.cut(start_time = video['stop_time'] - 8000, end_time = video['stop_time'] - 2000)
+    stop_video.cut(start_time = video['stop_time'] - 4000, end_time = video['stop_time'])
     #video
     output_file = VIDEO_DIR + video['file_name'] + '-' + str(video['stop_time']) + '.mp4'
     stop_video.write_video(output_file)
@@ -147,6 +146,7 @@ class ImageModel(pytorch_lightning.LightningModule):
       self.model = models.efficientnet_b7(pretrained=True)
       self.model.classifier[1] = nn.Linear(in_features=2560, out_features=2)
 
+    print(self.model)
     self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
     self.loss_weights = torch.FloatTensor(CLASS_WEIGHTS).cuda()
 
@@ -228,7 +228,8 @@ class ImageDataset(Dataset):
   def __getitem__(self, ix):
     video = self.data[ix]
     image = None
-    image_file = self.path_prefix + video['file_name'] + '.jpeg'
+    image_file = self.path_prefix + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
+    #print(f'Going to read [{image_file}]')
     image = Image.open(image_file)
     image_class = 0
     if video['long_stop']:
@@ -239,7 +240,7 @@ class ImageDataModule(pytorch_lightning.LightningDataModule):
   def __init__(self, single_image = True):
     super().__init__()
     self.NUM_WORKERS = 4
-    self.BATCH_SIZE = 12
+    self.BATCH_SIZE = 14
     self.single_image = single_image
 
   def prepare_data(self):
