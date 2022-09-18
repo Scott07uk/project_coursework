@@ -1,3 +1,7 @@
+from abc import (
+  ABC,
+  abstractmethod
+)
 from argparse import (
   ArgumentParser
 )
@@ -56,6 +60,7 @@ CARLA_OFFSET_MS = 3000
 parser = ArgumentParser()
 parser = pytorch_lightning.Trainer.add_argparse_args(parser)
 parser.add_argument('--perform-extract', dest='perform_extract', action='store_true', help='Perform the extract process from the original source videos')
+parser.add_argument('--perform-carla-mods', dest='perform_carla_mods', action='store_true', help='Perform image modifications (contrast, lighting, blur on the carla images extracted')
 parser.add_argument('--perform-stop-start-extract', dest='perform_stop_start_extract', action='store_true', help='Extract the data into the stop start form for motion detection')
 
 parser.add_argument('--single-frame-train', dest='single_frame_train', action='store_true', help='Perform the training process on a single image')
@@ -70,7 +75,7 @@ parser.add_argument('--use-bdd-and-carla', dest='bdd_and_carla', action='store_t
 parser.add_argument('--carla', dest='carla', action='store', help='Percentage of carla videos to use 1 = 100pct default 1')
 parser.add_argument('--bdd', dest='bdd', action='store', help='Percentage of BDD videos to use 1 = 100pct default 0')
 
-parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1)
+parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False)
 
 args = parser.parse_args()
 
@@ -81,6 +86,51 @@ PERFORM_VIDEO_TRAIN = args.video_train
 PERFORM_START_STOP_TRAIN = args.start_stop_train
 BDD_AND_CARLA = float(args.bdd) > 0
 CARLA_PCT = float(args.carla)
+
+
+class CarlaImageMod(ABC):
+  @abstractmethod
+  def filter(self, image):
+    pass
+
+class CarlaBlur(CarlaImageMod):
+  def __init__(self):
+    self.run_prob = 0.3
+
+  def filter(self, image):
+    if random.random() <= self.run_prob:
+      kernel = numpy.ones((5,5),numpy.float32)/25
+      return cv2.filter2D(image,-1,kernel)
+    return image
+
+class CarlaBrightness(CarlaImageMod):
+  def __init__(self):
+    self.run_prob = 0.3
+
+  def filter(self, image):
+    if random.random() <= self.run_prob:
+      brightness = numpy.random.randint(-50, 50)
+      return numpy.clip(image + brightness, 0, 255).astype('uint8')
+    return image
+
+class CarlaContrast(CarlaImageMod):
+  def __init__(self):
+    self.run_prob = 0.3
+    self.min_alpha = 0.6
+    self.max_alpha = 1.4
+
+  def filter(self, image):
+    if random.random() <= self.run_prob:
+      alpha_change = (self.max_alpha - self.min_alpha) * numpy.random.random() + self.min_alpha
+      return numpy.clip(alpha_change * image, 0, 255).astype('uint8')
+    return image
+
+CARLA_IMAGE_MODS = [CarlaBlur(), CarlaBrightness(), CarlaContrast()]
+
+def carla_filter(image):
+  for c_filter in CARLA_IMAGE_MODS:
+    image = c_filter.filter(image)
+  return image
 
 sql = 'SELECT stop_id, carla_id, stop_time_ms, start_time_ms FROM carla_stop WHERE (start_time_ms - stop_time_ms) > 1000 and stop_time_ms > 8000 ORDER BY carla_id'
 
@@ -131,9 +181,16 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
                 if current_index >= len(movement_tracker.frame_times):
                   break
               if current_index < len(movement_tracker.frame_times):
-                blue = cv2.cvtColor(movement_tracker.frames[current_index], cv2.COLOR_BGR2GRAY)
-                green = cv2.cvtColor(movement_tracker.frames[current_index - int(movement_tracker.fps * 2)], cv2.COLOR_BGR2GRAY)
-                red = cv2.cvtColor(movement_tracker.frames[current_index - int(movement_tracker.fps * 4)], cv2.COLOR_BGR2GRAY)
+                blue = movement_tracker.frames[current_index]
+                green = movement_tracker.frames[current_index - int(movement_tracker.fps * 2)]
+                red = movement_tracker.frames[current_index - int(movement_tracker.fps * 4)]
+                if args.perform_carla_mods:
+                  blue = carla_filter(blue)
+                  green = carla_filter(green)
+                  red = carla_filter(red)
+                blue = cv2.cvtColor(blue, cv2.COLOR_BGR2GRAY)
+                green = cv2.cvtColor(green, cv2.COLOR_BGR2GRAY)
+                red = cv2.cvtColor(red, cv2.COLOR_BGR2GRAY)
                 output_image = numpy.dstack([red, green, blue]).astype(numpy.uint8)
 
                 moving = True
@@ -576,8 +633,6 @@ class VideoDataModule(pytorch_lightning.LightningDataModule):
 
   def val_dataloader(self):
     return torch.utils.data.DataLoader(create_video_dataset(valid_videos, self.valid_transforms), batch_size = self.BATCH_SIZE, num_workers = self.NUM_WORKERS)
-
-
 
 
 if PERFORM_SINGLE_FRAME_TRAIN:
