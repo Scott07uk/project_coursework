@@ -25,7 +25,10 @@ PCT_VALID = 0.2
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
-BATCH_SIZE = 8
+#resnet50
+BATCH_SIZE = 16
+BATCH_SIZE = 12
+BATCH_SIZE = 3
 
 video_train = []
 video_valid = []
@@ -77,10 +80,12 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
   def __init__(self):
     super(DashcamStopTimeModel, self).__init__()
     #self.model = models.resnet50(pretrained=True)
-    self.model = models.densenet121(pretrained=True)
+    #self.model = models.densenet121(pretrained=True)
+    self.model = models.efficientnet_b7(pretrained=True)
     print(self.model)
     #self.model.fc = nn.Linear(in_features=2048, out_features=1)
-    self.model.classifier = nn.Linear(in_features=1024, out_features=1)
+    #self.model.classifier = nn.Linear(in_features=1024, out_features=1)
+    self.model.classifier[1] = nn.Linear(in_features=2560, out_features=1)
     #freeze_layers(self.model)
 
   def forward(self, x):
@@ -93,7 +98,7 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
 
   def loss_function(self, logits, labels):
     return F.l1_loss(logits, labels)
-    #return F.mse_loss(logits, labels).float()
+    #return F.mse_loss(logits, labels)
 
   def training_step(self, train_batch, batch_idx):
     x, y = train_batch
@@ -107,6 +112,8 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     logits = self.forward(x)
     loss = self.loss_function(logits, y)
     self.log('val_loss', loss)
+
+    
 
 class DashcamDataset(Dataset):
   def __init__(self, data, transform):
@@ -139,7 +146,7 @@ class DashcamDataset(Dataset):
       if times[index + self.prev_frames] >= video_stop_time:
         for use_index in range(self.prev_frames):
           output_image_name = f'{video_dir}/{use_index}.jpeg'
-          #print(f'Writing {output_image_name}')
+          print(f'Writing {output_image_name}')
           cv2.imwrite(output_image_name, frames[index])
           video_files_written += 1
         break
@@ -149,11 +156,11 @@ class DashcamDataset(Dataset):
 
   def __getitem__(self, ix):
     video = self.data[ix]
-    video_dir = pathlib.Path(CONFIG.get_temp_dir() + '/' + video['file_name'])
+    video_dir = pathlib.Path(CONFIG.get_temp_dir() + '/single-image/' + video['file_name'])
     
     image_file_index = random.randint(0, self.prev_frames - 1)
     image_file = f'{video_dir}/{image_file_index}.jpeg'
-    
+    #print(f'Does file exist {image_file}')
     while not os.path.exists(image_file):
       self.video_from_frames(ix)
       time.sleep(1)
