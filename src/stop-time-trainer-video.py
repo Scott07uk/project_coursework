@@ -122,9 +122,9 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
 
   def loss_function(self, y_hat, y):
     y = y.to(torch.float32).reshape(-1, y.shape[0])
-    #loss = F.l1_loss(y_hat, y)
-    loss = F.mse_loss(y_hat, y)
-    loss = loss.to(torch.float32)
+    loss = F.l1_loss(y_hat, y)
+    #loss = F.mse_loss(y_hat, y)
+    #loss = loss.to(torch.float32)
     #print(loss)
     return loss
 
