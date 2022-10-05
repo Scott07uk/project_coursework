@@ -229,6 +229,30 @@ class DashcamMovementTracker:
       out.write(frame)
     out.release()
 
+  def get_training_data(self, stop_time_ms):
+    frame_index = 0
+    while self.frame_times[frame_index] < stop_time_ms:
+      frame_index = frame_index + 1
+  
+    stills = []
+    for index in range(max(0, frame_index - 20), frame_index):
+      stills.append(self.frames[index])
+    
+    multi_stills = []
+    for index in range(max(0, frame_index - 20), frame_index):
+      blue = self.frames[index]
+      green = self.frames[max(index - int(self.fps * 2), 0)]
+      red = self.frames[max(index - int(self.fps * 4), 0)]
+
+      blue = cv2.cvtColor(blue, cv2.COLOR_BGR2GRAY)
+      green = cv2.cvtColor(green, cv2.COLOR_BGR2GRAY)
+      red = cv2.cvtColor(red, cv2.COLOR_BGR2GRAY)
+      multi_stills.append(numpy.dstack([red, green, blue]).astype(numpy.uint8))
+
+    self.cut(start_time = stop_time_ms - 6000 , end_time = stop_time_ms)
+
+    return {'stills': stills, 'multi-stills': multi_stills}
+
 
 DEBUG_STOP_TIMES = False
 DEBUG_FRAME_RATE_CHANGE = False
