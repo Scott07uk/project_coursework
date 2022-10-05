@@ -154,16 +154,20 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
   def loss_function(self, y_hat, y):
     #print(y_hat)
     #print(y)
-    y = y.to(torch.float32)
+    #y = y.to(torch.float32)
     #y = y.reshape(-1, y.shape[0])
-    #loss = F.l1_loss(y_hat, y)
-    loss = F.mse_loss(y_hat, y)
-    loss = loss.to(torch.float32)
+    print(f'y_hat = {y_hat}')
+    print(f'y = {y}')
+    loss = F.l1_loss(y_hat, y)
+    print(f'loss = {loss}')
+    #loss = F.mse_loss(y_hat, y)
+    #loss = loss.to(torch.float32)
     #print(loss)
     return loss
 
   def training_step(self, train_batch, batch_idx):
     y_hat = self.forward(train_batch["video"])
+    #print(train_batch["label"])
     loss = self.loss_function(y_hat, train_batch["label"])
     self.log('train_loss', loss)
     return loss
