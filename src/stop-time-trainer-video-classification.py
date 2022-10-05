@@ -1,4 +1,4 @@
-from BDD import BDDConfig
+from BDD import (BDDConfig, video_stops_from_database)
 from DashcamMovementTracker import DashcamMovementTracker
 import psycopg2
 import random
@@ -26,7 +26,7 @@ from pytorchvideo.transforms import (
     Normalize
 )
 from typing import Any, Callable, List, Optional
-from torchmetrics import ConfusionMatrix
+import torchmetrics
 import io
 import numpy
 import pandas
@@ -51,33 +51,9 @@ video_valid = []
 video_all = []
 seen_file_names = []
 
-db = psycopg2.connect(CONFIG.get_psycopg2_conn())
-cursor = db.cursor()
-cursor.execute("SELECT file_name, file_type, stop_time_ms, start_time_ms, (start_time_ms - stop_time_ms) as duration FROM video_file INNER JOIN video_file_stop ON (id = video_file_id) WHERE stop_time_ms > 4000 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms")
-row = cursor.fetchone()
+video_train, video_valid = video_stops_from_database(CONFIG)
 
-while row is not None:
-  video = {
-    'file_name': row[0],
-    'file_type': row[1],
-    'stop_time': float(row[2]),
-    'start_time': float(row[3]),
-    'duration': float(row[4]),
-    'long_stop': row[4] >= CLASSIFIER_THRESH
-  }
-
-  if video['file_name'] not in seen_file_names:
-    seen_file_names.append(video['file_name'])
-    if random.random() < PCT_VALID:
-      video_valid.append(video)
-    else:
-      video_train.append(video)
-    video_all.append(video)
-
-
-  row = cursor.fetchone()
-
-cursor.close()
+all_videos = video_train + video_valid
 
 
 print(f'Samples training {len(video_train)} validation {len(video_valid)}')
@@ -107,7 +83,7 @@ def raw_video_to_shorts(video_files):
       movement_tracker.write_video(output_file)
 
 class DashcamStopTimeModel(pytorch_lightning.LightningModule):
-  def __init__(self):
+  def __init__(self, name=None, trainer=None):
     super(DashcamStopTimeModel, self).__init__()
     self.model = pytorchvideo.models.resnet.create_resnet(
       input_channel=3, # RGB input from Kinetics
@@ -119,8 +95,16 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     #self.model.fc = nn.Linear(in_features=2048, out_features=1)
     #self.model.classifier = nn.Linear(in_features=1024, out_features=1)
     #freeze_layers(self.model)
-    self.val_confusion = ConfusionMatrix(num_classes=2)
-    self.loss_weights = torch.FloatTensor([4.23, 6.81]).cuda()
+    self.loss_weights = torch.FloatTensor([2.3, 4.15]).cuda()
+    #self.loss_weights = torch.FloatTensor([4.23, 6.81]).cuda()
+
+    self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
+    self.train_acc = torchmetrics.Accuracy()
+    self.valid_acc = torchmetrics.Accuracy()
+    self.best_valid_loss = None
+    self.best_valid_acc = None
+    self.name = name
+    self.trainer = trainer
 
   def forward(self, x):
     out = self.model(x)
@@ -131,26 +115,29 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     return optimizer
 
   def loss_function(self, y_hat, y):
-    #print(y_hat)
-    #print(y)
-    #exit()
     loss = F.cross_entropy(y_hat, y, weight=self.loss_weights)
-    self.log('val_loss', loss)
-    self.val_confusion.update(y_hat, y)
     return loss
 
   def training_step(self, train_batch, batch_idx):
-    #print(train_batch)
+    y = train_batch["label"]
     y_hat = self.model(train_batch["video"])
-    loss = self.loss_function(y_hat, train_batch["label"])
+    loss = self.loss_function(y_hat, y)
     self.log('train_loss', loss)
+    batch_value = self.train_acc(y_hat, y)
     return loss
 
+  def training_epoch_end(self, outputs):
+    self.log('train_acc', self.train_acc.compute())
+    self.train_acc.reset()
+
   def validation_step(self, val_batch, batch_idx):
-    #print(val_batch['label'])
+    y = val_batch['label']
     y_hat = self.model(val_batch['video'])
-    loss = self.loss_function(y_hat, val_batch['label'])
+    loss = self.loss_function(y_hat, y)
     self.log('val_loss', loss)
+    self.val_confusion.update(y_hat, y)
+    self.valid_acc.update(y_hat, y)
+    return { 'loss': loss, 'preds': y_hat, 'target': y}
 
   def validation_epoch_end(self, outputs):
     tb = self.logger.experiment
@@ -168,7 +155,26 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     im = Image.open(buf)
     im = transforms.ToTensor()(im)
     tb.add_image("val_confusion_matrix", im, global_step=self.current_epoch)
-    self.val_confusion = ConfusionMatrix(num_classes=2).cuda()
+    self.val_confusion.reset()
+    computed_valid_acc = self.valid_acc.compute()
+    self.log('valid_acc', computed_valid_acc)
+    computed_valid_acc = computed_valid_acc.item()
+    self.valid_acc.reset()
+    total_loss = (sum(output['loss'] for output in outputs)).item()
+    if self.best_valid_loss is None:
+      self.best_valid_loss = 9999999999999
+      self.best_valid_acc = 0
+    else:
+      dump_model = False
+      if self.best_valid_loss > total_loss and self.current_epoch >= 1:
+        self.best_valid_loss = total_loss
+        dump_model = True
+      if self.best_valid_acc < computed_valid_acc and self.current_epoch >= 1:
+        self.best_valid_acc = computed_valid_acc
+        dump_model = True
+      if dump_model:
+        if self.trainer is not None:
+          self.trainer.save_checkpoint(f'models/{self.name}-e{self.current_epoch}-a{self.best_valid_acc}.ckpt')
 
 
 
@@ -259,9 +265,10 @@ class DashcamStopTimeDataModule(pytorch_lightning.LightningDataModule):
 def main(args):
   #raw_video_to_shorts(video_all)
   #exit()
-  model = DashcamStopTimeModel()
-  data_module = DashcamStopTimeDataModule(video_train, video_valid)
   trainer = pytorch_lightning.Trainer.from_argparse_args(args)
+  model = DashcamStopTimeModel(name='video', trainer=trainer)
+  data_module = DashcamStopTimeDataModule(video_train, video_valid)
+  
   model.cuda()
   trainer.fit(model, data_module)
 

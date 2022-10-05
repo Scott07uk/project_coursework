@@ -1,4 +1,7 @@
-from BDD import BDDConfig
+from BDD import (
+  BDDConfig,
+  video_stops_from_database
+)
 from DashcamMovementTracker import DashcamMovementTracker
 import psycopg2
 import random
@@ -18,9 +21,9 @@ import time
 import pandas
 import matplotlib.pyplot as plt
 import seaborn as sns
-from torchmetrics import ConfusionMatrix
 import io
 import numpy
+import torchmetrics
 
 #https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09+
 
@@ -33,38 +36,15 @@ PCT_VALID = 0.2
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
-BATCH_SIZE = 16
+BATCH_SIZE = 18
+BATCH_SIZE = 12
+BATCH_SIZE = 3
 
 video_train = []
 video_valid = []
 seen_file_names = []
 
-db = psycopg2.connect(CONFIG.get_psycopg2_conn())
-cursor = db.cursor()
-cursor.execute("SELECT file_name, file_type, stop_time_ms, start_time_ms, start_time_ms - stop_time_ms as duration from video_file inner join video_file_stop on (id = video_file_id) where stop_time_ms > 0 and start_time_ms is not null AND state = 'DONE' AND stop_time_ms < start_time_ms")
-row = cursor.fetchone()
-
-while row is not None:
-  video = {
-    'file_name': row[0],
-    'file_type': row[1],
-    'stop_time': float(row[2]),
-    'start_time': float(row[3]),
-    'duration': float(row[4]),
-    'long_stop': row[4] >= CLASSIFIER_THRESH
-  }
-
-  if video['file_name'] not in seen_file_names:
-    seen_file_names.append(video['file_name'])
-    if random.random() < PCT_VALID:
-      video_valid.append(video)
-    else:
-      video_train.append(video)
-
-
-  row = cursor.fetchone()
-
-cursor.close()
+video_train, video_valid = video_stops_from_database(CONFIG)
 
 
 print(f'Samples training {len(video_train)} validation {len(video_valid)}')
@@ -83,7 +63,7 @@ def freeze_layers(model, freeze=True):
 
 
 class DashcamStopTimeModel(pytorch_lightning.LightningModule):
-  def __init__(self):
+  def __init__(self, name=None, trainer=None):
     super(DashcamStopTimeModel, self).__init__()
     #self.model = models.resnet50(pretrained=True)
     self.model = models.densenet121(pretrained=True)
@@ -94,8 +74,17 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     #self.model.classifier[1] = nn.Linear(in_features=2560, out_features=2)
     #freeze_layers(self.model)
 
-    self.val_confusion = ConfusionMatrix(num_classes=2)
-    self.loss_weights = torch.FloatTensor([4.23, 5.81]).cuda()
+    self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
+    #For Resnet
+    self.loss_weights = torch.FloatTensor([2.3, 4.15]).cuda()
+    #self.loss_weights = torch.FloatTensor([4.23, 5.81]).cuda()
+
+    self.train_acc = torchmetrics.Accuracy()
+    self.valid_acc = torchmetrics.Accuracy()
+    self.best_valid_loss = None
+    self.best_valid_acc = None
+    self.name = name
+    self.trainer = trainer
 
   def forward(self, x):
     out = self.model(x)
@@ -113,7 +102,12 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     logits = self.forward(x)
     loss = self.loss_function(logits, y)
     self.log('train_loss', loss)
+    batch_value = self.train_acc(logits, y)
     return loss
+
+  def training_epoch_end(self, outputs):
+    self.log('train_acc', self.train_acc.compute())
+    self.train_acc.reset()
 
   def validation_step(self, val_batch, batch_idx):
     x, y = val_batch
@@ -121,6 +115,7 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     loss = self.loss_function(logits, y)
     self.log('val_loss', loss)
     self.val_confusion.update(logits, y)
+    self.valid_acc.update(logits, y)
     return { 'loss': loss, 'preds': logits, 'target': y}
 
   def validation_epoch_end(self, outputs):
@@ -139,7 +134,26 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     im = Image.open(buf)
     im = transforms.ToTensor()(im)
     tb.add_image("val_confusion_matrix", im, global_step=self.current_epoch)
-    self.val_confusion = ConfusionMatrix(num_classes=2).cuda()
+    self.val_confusion.reset()
+    computed_valid_acc = self.valid_acc.compute()
+    self.log('valid_acc', computed_valid_acc)
+    computed_valid_acc = computed_valid_acc.item()
+    self.valid_acc.reset()
+    total_loss = (sum(output['loss'] for output in outputs)).item()
+    if self.best_valid_loss is None:
+      self.best_valid_loss = 9999999999999
+      self.best_valid_acc = 0
+    else:
+      dump_model = False
+      if self.best_valid_loss > total_loss and self.current_epoch >= 1:
+        self.best_valid_loss = total_loss
+        dump_model = True
+      if self.best_valid_acc < computed_valid_acc and self.current_epoch >= 1:
+        self.best_valid_acc = computed_valid_acc
+        dump_model = True
+      if dump_model:
+        if self.trainer is not None:
+          self.trainer.save_checkpoint(f'models/{self.name}-e{self.current_epoch}-a{self.best_valid_acc}.ckpt')
 
 class DashcamDataset(Dataset):
   def __init__(self, data, transform):
@@ -150,20 +164,20 @@ class DashcamDataset(Dataset):
   def __len__(self):
     return len(self.data)
 
+  def get_video_file_name(self, video):
+    return CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
+
+
   def video_from_frames(self, ix):
     video = self.data[ix]
     video_file_name = video['file_name']
 
-    cursor = db.cursor()
-    cursor.execute("SELECT file_name FROM video_file WHERE file_name = '" + video_file_name + "' FOR UPDATE")
-
-    video_dir = pathlib.Path(CONFIG.get_temp_dir() + '/multi-image/' + video_file_name)
+    output_image_file = self.get_video_file_name(video)
     video_stop_time = video['stop_time']
     movement_tracker = DashcamMovementTracker()
     times, frames = movement_tracker.get_video_frames_from_file(CONFIG.get_absoloute_path_of_video(video['file_type'], video_file_name))
     if times is None:
       print('times is none')
-    print(f'Extracted {len(times)} times and {len(frames)} from {video_file_name}')
     red = None
     green = None
     blue = None
@@ -181,16 +195,14 @@ class DashcamDataset(Dataset):
       
       if red is not None and green is not None and blue is not None:
         output_image = numpy.dstack([red, green, blue]).astype(numpy.uint8)
-        output_image_name = f'{video_dir}.jpeg'
         print(f'Writing {output_image_name}')
-        cv2.imwrite(output_image_name, output_image)
+        cv2.imwrite(output_image_file, output_image)
         break
 
-    cursor.close()
 
   def __getitem__(self, ix):
     video = self.data[ix]
-    video_image_file = pathlib.Path(CONFIG.get_temp_dir() + '/multi-image/' + video['file_name'] + '.jpeg')
+    video_image_file = self.get_video_file_name(video)
     
     
     while not os.path.exists(video_image_file):
@@ -260,9 +272,9 @@ class DashcamStopTimeDataModule(pytorch_lightning.LightningDataModule):
 
 
 def main(args):
-  model = DashcamStopTimeModel()
   data_module = DashcamStopTimeDataModule(video_train, video_valid)
   trainer = pytorch_lightning.Trainer.from_argparse_args(args)
+  model = DashcamStopTimeModel(name='multi-still', trainer=trainer)
   model.cuda()
   trainer.fit(model, data_module)
 
