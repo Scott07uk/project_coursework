@@ -237,7 +237,7 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
       row = cursor.fetchone()
 
 if BDD_AND_CARLA:
-  bdd_train, bdd_valid = video_stops_from_database(CONFIG, MIN_DURATION=4000)
+  bdd_train, bdd_valid = video_stops_from_database(CONFIG)
 
   print(f'Loading BDD data [{len(bdd_train)}] training videos, [{len(bdd_valid)}] validation videos')
 
@@ -353,10 +353,11 @@ class ImageModel(pytorch_lightning.LightningModule):
 class ImageDataset(Dataset):
   def __init__(self, training, single_image):
     self.carla_path_prefix = 'carla-still'
-    self.bdd_path_prefix = 'single-image'
+    self.bdd_path_prefix = 'bdd-still'
+    self.training = training
     if not single_image:
       self.carla_path_prefix = 'carla-multi-still'
-      self.bdd_path_prefix = 'multi-image'
+      self.bdd_path_prefix = 'bdd-multi-still'
 
     if training:
       self.data = train_videos
@@ -390,7 +391,10 @@ class ImageDataset(Dataset):
       image_file = CONFIG.get_temp_dir() + '/' + self.carla_path_prefix + '/' + str(video['stop_id']) + '.jpeg'
       image = Image.open(image_file)
     else:
-      image_file = CONFIG.get_temp_dir() + '/' + self.bdd_path_prefix + '/' + video['file_name'] + '.jpeg'
+      image_file_index = 19
+      if self.training:
+        image_file_index = random.randint(0, 20)
+      image_file = CONFIG.get_temp_dir() + '/' + self.bdd_path_prefix + '/' + video['file_name'] + '-' + str(video['stop_time']) + '/' + str(image_file_index) + '.jpeg'
       image = Image.open(image_file)
 
     return self.transforms(image), video['duration_class'] 
