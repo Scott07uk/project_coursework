@@ -338,7 +338,7 @@ else:
     if args.images == 'still':
       image_file_name = CONFIG.get_temp_dir() + '/bdd-still/' + video['file_name'] + '-' + str(video['stop_time']) + '/19.jpeg'
     elif args.images == 'multi-still':  
-      image_file_name = CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
+      image_file_name = CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']) + '/19.jpeg'
     model_output = run_inference(image_file_name)
     vid_run_time = (time.time() * 1000) - vid_start_time
     if args.regression:
