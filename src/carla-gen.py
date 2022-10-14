@@ -177,10 +177,7 @@ class CarlaSimulation:
     return array
 
   def to_rgb_array(self, image):
-    #print('to_bgra_array')
     array = self.to_bgra_array(image)
-    #print('to_bgra_array - done')
-    # Convert BGRA to RGB.
     array = array[:, :, :3]
     array = array[:, :, ::-1]
     return array
@@ -190,29 +187,18 @@ class CarlaSimulation:
     movement_tracker.fps = OUTPUT_FRAMES_PER_SECOND
     video_time_sec = 3.0
     captured_frame_count = len(self.captured_frames)
-    #print(f'Captured {captured_frame_count} frames')
+    
     current_frame_index = 0
-    #print('cheese')
     stops = []
-    #print('cheese1')
     current_stop = None
-    #print('cheese2')
     while True:
-      #print(str(current_frame_index))
       this_frame_diff = abs(video_time_sec - self.captured_frames[current_frame_index].timestamp)
       next_frame_diff = abs(video_time_sec - self.captured_frames[current_frame_index + 1].timestamp)
-      #print(str(this_frame_diff) + ' vs ' + str(next_frame_diff))
       if this_frame_diff <= next_frame_diff:
-        #print('bob1')
         captured_frame = self.captured_frames[current_frame_index]
-        #self.captured_frames[current_frame_index] = None
-        #print('bob2')
         reloaded_image = self.to_rgb_array(captured_frame)
-        #print('bob3')
         reloaded_image = cv2.cvtColor(reloaded_image, cv2.COLOR_RGB2BGR)
-        #print('bob4')
         movement_tracker.frames.append(reloaded_image)
-        #print('bob5')
         movement_tracker.frame_times.append(captured_frame.timestamp * 1000)  
         movement_tracker.frame_stop_status.append(self.captured_moving[current_frame_index])
         video_time_sec += (1 / OUTPUT_FRAMES_PER_SECOND)
@@ -224,7 +210,6 @@ class CarlaSimulation:
             stops.append((current_stop, captured_frame.timestamp * 1000))
             current_stop = None
       else:
-        #print(dir(self.captured_frames[current_frame_index]))
         self.captured_frames[current_frame_index] = None
         current_frame_index += 1
 
