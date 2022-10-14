@@ -52,10 +52,11 @@ KINETICS_STATS = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 CLASS_WEIGHTS = [2.1, 1]
 CLASS_WEIGHTS_COMBINED = [1.05, 1]
-FRAMES_PER_VIDEO = 8
+FRAMES_PER_VIDEO = 32
 VIDEO_SIDE_SIZE = 256
 VIDEO_CROP_SIZE = 256
 CARLA_OFFSET_MS = 3000
+SLOWFAST_ALPHA = 4
 
 parser = ArgumentParser()
 parser = pytorch_lightning.Trainer.add_argparse_args(parser)
@@ -137,6 +138,7 @@ sql = 'SELECT stop_id, carla_id, stop_time_ms, start_time_ms FROM carla_stop WHE
 train_videos = []
 valid_videos = []
 current_videos = []
+carla_videos = {}
 
 with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
   with db.cursor() as cursor:
@@ -158,6 +160,8 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
       video = {
         'stop_id': stop_id,
         'carla_id': carla_id,
+        'stop_time': stop_time_ms / 1000.0,
+        'start_time': start_time_ms / 1000.0,
         'stop_time_ms': stop_time_ms,
         'start_time_ms': start_time_ms,
         'duration': duration,
@@ -169,85 +173,71 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
           valid_videos.append(video)
         else: 
           train_videos.append(video)
-      
-      if PERFORM_EXTRACT:
-        orig_file_name = CONFIG.get_temp_dir() + '/carla-orig/' + str(carla_id) + '.mp4'
-        if carla_id != movement_tracker_id:
-          if movement_tracker_id != -1:
-            current_index = 0
-            for second in range(15, int(max(movement_tracker.frame_times)/1000)):
-              while (movement_tracker.frame_times[current_index] < second * 1000):
-                current_index = current_index + 1
-                if current_index >= len(movement_tracker.frame_times):
-                  break
-              if current_index < len(movement_tracker.frame_times):
-                blue = movement_tracker.frames[current_index]
-                green = movement_tracker.frames[current_index - int(movement_tracker.fps * 2)]
-                red = movement_tracker.frames[current_index - int(movement_tracker.fps * 4)]
-                if args.perform_carla_mods:
-                  blue = carla_filter(blue)
-                  green = carla_filter(green)
-                  red = carla_filter(red)
-                blue = cv2.cvtColor(blue, cv2.COLOR_BGR2GRAY)
-                green = cv2.cvtColor(green, cv2.COLOR_BGR2GRAY)
-                red = cv2.cvtColor(red, cv2.COLOR_BGR2GRAY)
-                output_image = numpy.dstack([red, green, blue]).astype(numpy.uint8)
 
-                moving = True
-                for stop in current_videos:
-                  if (stop['stop_time_ms'] - CARLA_OFFSET_MS) <= (second * 1000) and (stop['start_time_ms'] - CARLA_OFFSET_MS) >= (second * 1000):
-                    moving = False
-                    break
-                
-                output_file = CONFIG.get_temp_dir() + '/carla-movement/'
-                if moving:
-                  output_file = output_file + 'moving/'
-                else:
-                  output_file = output_file + 'stopped/'
-                first_video = current_videos[0]
-                output_file = output_file + str(first_video['carla_id']) + '-' + str(second) + '.jpeg'
-                cv2.imwrite(output_file, output_image)
-              
-          movement_tracker = DashcamMovementTracker()
-          movement_tracker.get_video_frames_from_file(orig_file_name)
-          movement_tracker_id = carla_id
-          current_videos = []
-
-        current_videos.append(video)
-        stop_video = DashcamMovementTracker()
-        stop_video.fps = movement_tracker.fps
-        stop_video.frame_stop_status = movement_tracker.frame_stop_status.copy()
-        stop_video.frame_times = movement_tracker.frame_times.copy()
-        stop_video.frames = movement_tracker.frames.copy()
-
-        stop_video.cut(start_time = stop_time_ms - 6000 - CARLA_OFFSET_MS, end_time = stop_time_ms - CARLA_OFFSET_MS)
-        #video
-        stop_video.write_video(CONFIG.get_temp_dir() + '/carla-video/' + str(stop_id) + '.mp4')
-
-        #Single Still at stop time
-        cv2.imwrite(CONFIG.get_temp_dir() + '/carla-still/' + str(stop_id) + '.jpeg', stop_video.frames[-1])
- 
-        #Multi-still
-        red = cv2.cvtColor(stop_video.frames[0], cv2.COLOR_BGR2GRAY)
-        green = cv2.cvtColor(stop_video.frames[int(len(stop_video.frames) / 2)], cv2.COLOR_BGR2GRAY)
-        blue = cv2.cvtColor(stop_video.frames[-1], cv2.COLOR_BGR2GRAY)
-        output_image = numpy.dstack([red, green, blue]).astype(numpy.uint8)
-        cv2.imwrite(CONFIG.get_temp_dir() + '/carla-multi-still/' + str(stop_id) + '.jpeg', output_image)
-
+      if not str(carla_id) in carla_videos:
+        vid = {'carla_id': carla_id, 'stops': []}
+        carla_videos[str(carla_id)] = vid
+      vid = carla_videos[str(carla_id)]
+      stop_array = vid['stops']
+      stop_array.append(video)
       row = cursor.fetchone()
+      
+if PERFORM_EXTRACT:
+  all_videos = valid_videos + train_videos
+  for video in all_videos:
+    video_file = CONFIG.get_temp_dir() + '/carla-orig/' + str(video['carla_id']) + '.mp4'
+
+    still_dir = CONFIG.get_temp_dir() + '/carla-still/' + str(video['stop_id']) + '-' + str(video['stop_time'])
+    multi_still_dir = CONFIG.get_temp_dir() + '/carla-multi-still/' + str(video['stop_id']) + '-' + str(video['stop_time'])
+    short_video_file = CONFIG.get_temp_dir() + '/carla-video/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '.mp4'
+    still_dir_path = pathlib.Path(still_dir)
+    multi_still_dir_path = pathlib.Path(multi_still_dir)
+    short_video_file_path = pathlib.Path(short_video_file)
+    process = False
+    if not still_dir_path.exists():
+      still_dir_path.mkdir()
+      process = True
+
+    if not multi_still_dir_path.exists():
+      multi_still_dir_path.mkdir()
+      process = True
+
+    if not short_video_file_path.exists():
+      process = True
+
+    for index in range(20):
+      still_file_path = pathlib.Path(f'{still_dir}/{str(index)}.jpeg')
+      multi_still_file_path = pathlib.Path(f'{multi_still_dir}/{str(index)}.jpeg')
+      if (not still_file_path.exists()) or (not multi_still_file_path.exists()):
+        process = True
+
+
+    if process:
+      print(f'Processing video {video_file}')
+      movement_tracker = DashcamMovementTracker()
+      movement_tracker.get_video_frames_from_file(video_file)
+      output = movement_tracker.get_training_data(video['stop_time_ms'])
+      if output is not None:
+        stills = output['stills']
+        multi_stills = output['multi-stills']
+        for index in range(len(stills)):
+          output_image_name = still_dir + '/' + str(index) + '.jpeg'
+          cv2.imwrite(output_image_name, stills[index])
+
+          output_image_name = multi_still_dir + '/' + str(index) + '.jpeg'
+          cv2.imwrite(output_image_name, multi_stills[index])
+        movement_tracker.write_video(short_video_file)
+
+      
 
 if BDD_AND_CARLA:
   bdd_train, bdd_valid = video_stops_from_database(CONFIG)
 
   print(f'Loading BDD data [{len(bdd_train)}] training videos, [{len(bdd_valid)}] validation videos')
 
-  all_train = []
   all_valid = []
 
-  for video in train_videos:
-    all_train.append(video)
-  for video in valid_videos:
-    all_train.append(video)
+  all_train = train_videos + valid_videos
   for video in bdd_train:
     if video['long_stop']:
       video['duration_class'] = 1
@@ -338,14 +328,21 @@ class ImageModel(pytorch_lightning.LightningModule):
     self.val_confusion.reset()
     #self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2).cuda()
     computed_valid_acc = self.valid_acc.compute()
+    total_loss = (sum(output['loss'] for output in outputs)).item()
     self.log('valid_acc', computed_valid_acc)
     if self.best_valid_acc is None:
       self.best_valid_acc = 0
+      self.best_valid_loss = 9999999999999
     else:
-      if self.best_valid_acc < computed_valid_acc.cpu().item():
-        self.best_valid_acc = computed_valid_acc.cpu().item()
-        if self.trainer is not None:
-          trainer.save_checkpoint(f'models/{self.name}-e{self.current_epoch}-a{self.best_valid_acc}.ckpt')
+      dump_model = False
+      if self.best_valid_loss > total_loss and self.current_epoch >= 1:
+        self.best_valid_loss = total_loss
+        dump_model = True
+      if self.best_valid_acc < computed_valid_acc and self.current_epoch >= 1:
+        self.best_valid_acc = computed_valid_acc
+        dump_model = True
+      if dump_model and self.trainer is not None:
+        trainer.save_checkpoint(f'models/{self.name}-e{self.current_epoch}-a{self.best_valid_acc}.ckpt')
 
     self.valid_acc.reset()
 
@@ -387,15 +384,15 @@ class ImageDataset(Dataset):
   def __getitem__(self, ix):
     video = self.data[ix]
     image = None
+    image_file_index = 19
+    if self.training:
+      image_file_index = random.randint(0, 19)
+    image_file = None
     if video['type'] == 'carla':
-      image_file = CONFIG.get_temp_dir() + '/' + self.carla_path_prefix + '/' + str(video['stop_id']) + '.jpeg'
-      image = Image.open(image_file)
+      image_file = CONFIG.get_temp_dir() + '/' + self.carla_path_prefix + '/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '/' + str(image_file_index) + '.jpeg'
     else:
-      image_file_index = 19
-      if self.training:
-        image_file_index = random.randint(0, 20)
       image_file = CONFIG.get_temp_dir() + '/' + self.bdd_path_prefix + '/' + video['file_name'] + '-' + str(video['stop_time']) + '/' + str(image_file_index) + '.jpeg'
-      image = Image.open(image_file)
+    image = Image.open(image_file)
 
     return self.transforms(image), video['duration_class'] 
 
@@ -506,14 +503,14 @@ class PackPathway(torch.nn.Module):
       torch.linspace(
         0,
         frames.shape[1] - 1,
-        frames.shape[1]
+        frames.shape[1] // SLOWFAST_ALPHA
       ).long()
     )
 
     return [slow, fast]
 
 class VideoModel(pytorch_lightning.LightningModule):
-  def __init__(self):
+  def __init__(self, name = None, trainer = None):
     super(VideoModel, self).__init__()
     self.model = model = torch.hub.load('facebookresearch/pytorchvideo', 'slowfast_r50', pretrained=True)
     self.model._modules['blocks'][6] = pytorchvideo.models.head.ResNetBasicHead(
@@ -524,6 +521,11 @@ class VideoModel(pytorch_lightning.LightningModule):
     self.final = torch.nn.Linear(in_features=4, out_features=2)
     self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
     self.loss_weights = torch.FloatTensor(CLASS_WEIGHTS).cuda()
+    self.train_acc = torchmetrics.Accuracy()
+    self.valid_acc = torchmetrics.Accuracy()
+    self.best_valid_acc = None
+    self.name = name
+    self.trainer = trainer
 
   def forward(self, x):
     out = self.model(x)
@@ -535,24 +537,31 @@ class VideoModel(pytorch_lightning.LightningModule):
     return optimizer
 
   def loss_function(self, y_hat, y):
-    loss = F.cross_entropy(y_hat, y)
+    loss = torch.nn.functional.cross_entropy(y_hat, y)
     loss = loss.to(torch.float32)
     return loss
 
   def training_step(self, train_batch, batch_idx):
     y_hat = self.forward(train_batch["video"])
-    loss = self.loss_function(y_hat, train_batch["label"])
+    y = train_batch["label"]
+    loss = self.loss_function(y_hat, y)
+    batch_value = self.train_acc(y_hat, y)
     self.log('train_loss', loss)
     return loss
 
+  def training_epoch_end(self, outputs):
+    self.log('train_acc', self.train_acc.compute())
+    self.train_acc.reset()
+
   def validation_step(self, val_batch, batch_idx):
-    video = torch.tensor(val_batch['video'])
-    print(type(video))
+    video = val_batch['video']
     y_hat = self.forward(video)
     y = val_batch['label']
     loss = self.loss_function(y_hat, y)
     self.val_confusion.update(y_hat, y)
+    self.valid_acc.update(y_hat, y)
     self.log('val_loss', loss)
+    return { 'loss': loss, 'preds': y_hat, 'target': y}
 
   def validation_epoch_end(self, outputs):
     tb = self.logger.experiment
@@ -570,7 +579,26 @@ class VideoModel(pytorch_lightning.LightningModule):
     im = Image.open(buf)
     im = torchvision.transforms.ToTensor()(im)
     tb.add_image("val_confusion_matrix", im, global_step=self.current_epoch)
-    self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2).cuda()
+    self.val_confusion.reset()
+    #self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2).cuda()
+    computed_valid_acc = self.valid_acc.compute()
+    total_loss = (sum(output['loss'] for output in outputs)).item()
+    self.log('valid_acc', computed_valid_acc)
+    if self.best_valid_acc is None:
+      self.best_valid_acc = 0
+      self.best_valid_loss = 9999999999999
+    else:
+      dump_model = False
+      if self.best_valid_loss > total_loss and self.current_epoch >= 1:
+        self.best_valid_loss = total_loss
+        dump_model = True
+      if self.best_valid_acc < computed_valid_acc and self.current_epoch >= 1:
+        self.best_valid_acc = computed_valid_acc
+        dump_model = True
+      if dump_model and self.trainer is not None:
+        trainer.save_checkpoint(f'models/{self.name}-e{self.current_epoch}-a{self.best_valid_acc}.ckpt')
+
+    self.valid_acc.reset()
 
 
 def create_video_dataset(videos: typing.List[dict], transforms: typing.Optional[typing.Callable[[dict], typing.Any]]):
@@ -578,20 +606,25 @@ def create_video_dataset(videos: typing.List[dict], transforms: typing.Optional[
 
   for video in videos:
     labels = {"label": video['duration_class']}
-    video_file = CONFIG.get_temp_dir() + '/carla-video/' + str(video['stop_id']) + '.mp4'
+    video_file = CONFIG.get_temp_dir()
+    if video['type'] == 'carla':
+      video_file = video_file + '/carla-video/' + str(video['stop_id']) + '.mp4'
+    else:
+      video_file = video_file + '/bdd-video/' + video['file_name'] + '-' + str(video['stop_time']) + '.mp4'
+    labels['file_name'] = video_file
     labeled_video_paths.append((video_file, labels))
 
 
   return pytorchvideo.data.LabeledVideoDataset(labeled_video_paths, 
-    pytorchvideo.data.make_clip_sampler("random", 6),
+    pytorchvideo.data.make_clip_sampler("random", 2),
     transform = transforms)
 
 
 class VideoDataModule(pytorch_lightning.LightningDataModule):
   def __init__(self):
     super().__init__()
-    self.NUM_WORKERS = 11
-    self.BATCH_SIZE = 1
+    self.NUM_WORKERS = 8
+    self.BATCH_SIZE = 6
 
     self.train_transforms = torchvision.transforms.Compose(
       [
@@ -662,9 +695,8 @@ if PERFORM_START_STOP_TRAIN:
   trainer.fit(model, data_module)
 
 if PERFORM_VIDEO_TRAIN:
-  model = VideoModel()
   data_module = VideoDataModule()
   trainer = pytorch_lightning.Trainer.from_argparse_args(args)
-  model.trainer = trainer
+  model = VideoModel(name='video', trainer=trainer)
   model.cuda()
   trainer.fit(model, data_module)
