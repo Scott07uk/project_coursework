@@ -231,9 +231,12 @@ class DashcamMovementTracker:
 
   def get_training_data(self, stop_time_ms):
     frame_index = 0
-    while self.frame_times[frame_index] < stop_time_ms:
+    while frame_index < len(self.frame_times) and self.frame_times[frame_index] < stop_time_ms:
       frame_index = frame_index + 1
-  
+    
+    if frame_index + 1 >= len(self.frame_times):
+      return None
+
     stills = []
     for index in range(max(0, frame_index - 20), frame_index):
       stills.append(self.frames[index])
