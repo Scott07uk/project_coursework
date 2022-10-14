@@ -256,6 +256,24 @@ class DashcamMovementTracker:
 
     return {'stills': stills, 'multi-stills': multi_stills}
 
+def get_dense_optical_flow(frames):
+  prev_frame = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
+  hsv = numpy.zeros_like(frames[0])
+  hsv[...,1] = 255
+  output_frames = []
+  for index in range(1, len(frames)):
+    next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
+    flow = cv2.calcOpticalFlowFarneback(prev_frame, next_frame, None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2, flags=0)
+    mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])
+    hsv[...,0] = ang*180/numpy.pi/2
+    hsv[...,2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+    rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
+    prev_frame = next_frame
+    output_frame = numpy.hstack((frames[index], rgb))
+    output_frames.append(rgb)
+
+  return output_frames
+
 
 DEBUG_STOP_TIMES = False
 DEBUG_FRAME_RATE_CHANGE = False
