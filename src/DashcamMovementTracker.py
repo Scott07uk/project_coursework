@@ -229,7 +229,7 @@ class DashcamMovementTracker:
       out.write(frame)
     out.release()
 
-  def get_training_data(self, stop_time_ms):
+  def get_training_data(self, stop_time_ms, dense_optical_flow = False):
     frame_index = 0
     while frame_index < len(self.frame_times) and self.frame_times[frame_index] < stop_time_ms:
       frame_index = frame_index + 1
@@ -254,7 +254,19 @@ class DashcamMovementTracker:
 
     self.cut(start_time = stop_time_ms - 6000 , end_time = stop_time_ms)
 
-    return {'stills': stills, 'multi-stills': multi_stills}
+    out = {'stills': stills, 'multi-stills': multi_stills}
+
+    if dense_optical_flow:
+      optical_flow = get_dense_optical_flow(self.frames)
+      out['dense-optical-flow-video'] = optical_flow
+      optical_flow_stills = []
+      for index in range(max(0, len(optical_flow) - 20), len(optical_flow)):
+        optical_flow_stills.append(optical_flow[index])
+
+      out['dense-optical-flow-stills'] = optical_flow_stills
+
+
+    return out
 
 def get_dense_optical_flow(frames):
   prev_frame = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
