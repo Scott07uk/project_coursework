@@ -30,15 +30,20 @@ if args.perform_extract:
     video_file = CONFIG.get_absoloute_path_of_video(video['file_type'], video['file_name'])
     still_dir = CONFIG.get_temp_dir() + '/bdd-still/' + video['file_name'] + '-' + str(video['stop_time'])
     multi_still_dir = CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time'])
+    short_video_file = CONFIG.get_temp_dir() + '/bdd-video/' + video['file_name'] + '-' + str(video['stop_time']) + '.mp4'
     still_dir_path = pathlib.Path(still_dir)
-    multi_still_dir = pathlib.Path(multi_still_dir)
+    multi_still_dir_path = pathlib.Path(multi_still_dir)
+    short_video_file_path = pathlib.Path(short_video_file)
     process = False
     if not still_dir_path.exists():
       still_dir_path.mkdir()
       process = True
 
-    if not multi_still_dir.exists():
-      multi_still_dir.mkdir()
+    if not multi_still_dir_path.exists():
+      multi_still_dir_path.mkdir()
+      process = True
+
+    if not short_video_file_path.exists():
       process = True
 
     for index in range(20):
@@ -62,5 +67,7 @@ if args.perform_extract:
 
         output_image_name = multi_still_dir + '/' + str(index) + '.jpeg'
         cv2.imwrite(output_image_name, multi_stills[index])
+
+      movement_tracker.write_video(short_video_file)
 
 
