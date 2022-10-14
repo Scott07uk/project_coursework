@@ -25,8 +25,6 @@ import io
 import numpy
 import torchmetrics
 
-#https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09+
-
 random.seed(42)
 
 CLASSIFIER_THRESH = 8000
@@ -38,7 +36,7 @@ FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
 BATCH_SIZE = 18
 BATCH_SIZE = 12
-BATCH_SIZE = 3
+#BATCH_SIZE = 3
 
 video_train = []
 video_valid = []
@@ -68,7 +66,7 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     #self.model = models.resnet50(pretrained=True)
     self.model = models.densenet121(pretrained=True)
     #self.model = models.efficientnet_b7(pretrained=True)
-    print(self.model)
+    #print(self.model)
     #self.model.fc = nn.Linear(in_features=2048, out_features=2)
     self.model.classifier = nn.Linear(in_features=1024, out_features=2)
     #self.model.classifier[1] = nn.Linear(in_features=2560, out_features=2)
@@ -156,67 +154,33 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
           self.trainer.save_checkpoint(f'models/{self.name}-e{self.current_epoch}-a{self.best_valid_acc}.ckpt')
 
 class DashcamDataset(Dataset):
-  def __init__(self, data, transform):
+  def __init__(self, data, transform, training):
     self.data = data
     self.prev_frames = 20
     self.transform = transform
+    self.training = training
 
   def __len__(self):
     return len(self.data)
 
-  def get_video_file_name(self, video):
-    return CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
-
-
-  def video_from_frames(self, ix):
+  def __getitem_with_index__(self, ix, image_file_index):
     video = self.data[ix]
-    video_file_name = video['file_name']
-
-    output_image_file = self.get_video_file_name(video)
-    video_stop_time = video['stop_time']
-    movement_tracker = DashcamMovementTracker()
-    times, frames = movement_tracker.get_video_frames_from_file(CONFIG.get_absoloute_path_of_video(video['file_type'], video_file_name))
-    if times is None:
-      print('times is none')
-    red = None
-    green = None
-    blue = None
-    for index in range(len(times)):
-      #print(f'Checking to see if {times[index + self.prev_frames]} >= {video_stop_time} ({video_file_name})')
-      if times[index] >= video_stop_time - 4000:
-        if red is None:
-          red = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
-      if times[index] >= video_stop_time - 2000:
-        if blue is None:
-          blue = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
-      if times[index] >= video_stop_time:
-        if green is None:
-          green = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
-      
-      if red is not None and green is not None and blue is not None:
-        output_image = numpy.dstack([red, green, blue]).astype(numpy.uint8)
-        print(f'Writing {output_image_name}')
-        cv2.imwrite(output_image_file, output_image)
-        break
-
-
-  def __getitem__(self, ix):
-    video = self.data[ix]
-    video_image_file = self.get_video_file_name(video)
+    video_dir = pathlib.Path(CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']))
     
+    image_file = f'{video_dir}/{image_file_index}.jpeg'
     
-    while not os.path.exists(video_image_file):
-      print(f'{video_image_file} does not exist')
-      self.video_from_frames(ix)
-      time.sleep(1)
     image_class = 0
     if video['long_stop']:
       image_class = 1
-    try:
-      image = Image.open(video_image_file)
-      return self.transform(image).float(), image_class
-    except:
-      print(f'Exception thrown reading file {video_image_file}')
+    image = Image.open(image_file)
+    return self.transform(image).float(), image_class
+
+  def __getitem__(self, ix):
+    image_file_index = 19
+    if (self.training):
+      random.randint(0, self.prev_frames - 1)
+    
+    return self.__getitem_with_index__(ix, image_file_index)
 
   def test(self):
     self.__getitem__(0)
@@ -265,10 +229,10 @@ class DashcamStopTimeDataModule(pytorch_lightning.LightningDataModule):
     print('prepare_data')
 
   def train_dataloader(self):
-    return DataLoader(DashcamDataset(self.training_videos, self.train_transforms), batch_size=self.BATCH_SIZE, shuffle=True, num_workers=self.NUM_WORKERS)
+    return DataLoader(DashcamDataset(self.training_videos, self.train_transforms, True), batch_size=self.BATCH_SIZE, shuffle=True, num_workers=self.NUM_WORKERS)
 
   def val_dataloader(self):
-    return DataLoader(DashcamDataset(self.validation_videos, self.valid_transforms), batch_size=self.BATCH_SIZE, shuffle=True, num_workers=self.NUM_WORKERS)
+    return DataLoader(DashcamDataset(self.validation_videos, self.valid_transforms, False), batch_size=self.BATCH_SIZE, shuffle=True, num_workers=self.NUM_WORKERS)
 
 
 def main(args):
