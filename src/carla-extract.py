@@ -61,7 +61,8 @@ SLOWFAST_ALPHA = 4
 parser = ArgumentParser()
 parser = pytorch_lightning.Trainer.add_argparse_args(parser)
 parser.add_argument('--perform-extract', dest='perform_extract', action='store_true', help='Perform the extract process from the original source videos')
-parser.add_argument('--optical-flow', dest='optical_flow', action='store_true', help='When extracting images, also extract the optical flow')
+parser.add_argument('--dense-optical-flow', dest='dense_optical_flow', action='store_true', help='When extracting images, also extract the dense optical flow')
+parser.add_argument('--sparse-optical-flow', dest='sparse_optical_flow', action='store_true', help='When extracting images, also extract the sparse optical flow')
 parser.add_argument('--perform-carla-mods', dest='perform_carla_mods', action='store_true', help='Perform image modifications (contrast, lighting, blur on the carla images extracted')
 parser.add_argument('--perform-stop-start-extract', dest='perform_stop_start_extract', action='store_true', help='Extract the data into the stop start form for motion detection')
 
@@ -77,7 +78,7 @@ parser.add_argument('--use-bdd-and-carla', dest='bdd_and_carla', action='store_t
 parser.add_argument('--carla', dest='carla', action='store', help='Percentage of carla videos to use 1 = 100pct default 1')
 parser.add_argument('--bdd', dest='bdd', action='store', help='Percentage of BDD videos to use 1 = 100pct default 0')
 
-parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False, optical_flow = False)
+parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False, dense_optical_flow = False, sparse_optical_flow = False)
 
 args = parser.parse_args()
 
@@ -151,8 +152,8 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
     while row is not None:
       stop_id = row[0]
       carla_id = row[1]
-      stop_time_ms = row[2]
-      start_time_ms = row[3]
+      stop_time_ms = row[2] - 3000
+      start_time_ms = row[3] - 3000
       duration = start_time_ms - stop_time_ms
       duration_class = 0
       if duration > CLASSIFIER_THRESH:
@@ -192,10 +193,12 @@ if PERFORM_EXTRACT:
     multi_still_dir = CONFIG.get_temp_dir() + '/carla-multi-still/' + str(video['stop_id']) + '-' + str(video['stop_time'])
     short_video_file = CONFIG.get_temp_dir() + '/carla-video/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '.mp4'
     dense_optical_flow_still_dir = CONFIG.get_temp_dir() + '/carla-dense-optical-flow/' + str(video['stop_id']) + '-' + str(video['stop_time'])
+    sparse_optical_flow_still_dir = CONFIG.get_temp_dir() + '/carla-sparse-optical-flow/' + str(video['stop_id']) + '-' + str(video['stop_time'])
     still_dir_path = pathlib.Path(still_dir)
     multi_still_dir_path = pathlib.Path(multi_still_dir)
     short_video_file_path = pathlib.Path(short_video_file)
     dense_optical_flow_still_dir_path = pathlib.Path(dense_optical_flow_still_dir)
+    sparse_optical_flow_still_dir_path = pathlib.Path(sparse_optical_flow_still_dir)
     process = False
     if not still_dir_path.exists():
       still_dir_path.mkdir()
@@ -208,9 +211,13 @@ if PERFORM_EXTRACT:
     if not short_video_file_path.exists():
       process = True
 
-    if args.optical_flow:
+    if args.dense_optical_flow:
       if not dense_optical_flow_still_dir_path.exists():
         dense_optical_flow_still_dir_path.mkdir()
+        process = True
+    if args.sparse_optical_flow:
+      if not sparse_optical_flow_still_dir_path.exists():
+        sparse_optical_flow_still_dir_path.mkdir()
         process = True
 
 
@@ -225,7 +232,7 @@ if PERFORM_EXTRACT:
       print(f'Processing video {video_file}')
       movement_tracker = DashcamMovementTracker()
       movement_tracker.get_video_frames_from_file(video_file)
-      output = movement_tracker.get_training_data(video['stop_time_ms'], args.optical_flow)
+      output = movement_tracker.get_training_data(video['stop_time_ms'], args.dense_optical_flow, args.sparse_optical_flow)
       if output is not None:
         stills = output['stills']
         multi_stills = output['multi-stills']
@@ -236,9 +243,14 @@ if PERFORM_EXTRACT:
           output_image_name = multi_still_dir + '/' + str(index) + '.jpeg'
           cv2.imwrite(output_image_name, multi_stills[index])
 
-          if args.optical_flow:
+          if args.dense_optical_flow:
             optical_flow_stills = output['dense-optical-flow-stills']
             output_image_name = dense_optical_flow_still_dir + '/' + str(index) + '.jpeg'
+            cv2.imwrite(output_image_name, optical_flow_stills[index])
+          
+          if args.sparse_optical_flow:
+            optical_flow_stills = output['sparse-optical-flow-stills']
+            output_image_name = sparse_optical_flow_still_dir + '/' + str(index) + '.jpeg'
             cv2.imwrite(output_image_name, optical_flow_stills[index])
         movement_tracker.write_video(short_video_file)
 
