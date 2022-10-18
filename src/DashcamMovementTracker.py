@@ -229,7 +229,7 @@ class DashcamMovementTracker:
       out.write(frame)
     out.release()
 
-  def get_training_data(self, stop_time_ms, dense_optical_flow = False):
+  def get_training_data(self, stop_time_ms, dense_optical_flow = False, sparse_optical_flow = False):
     frame_index = 0
     while frame_index < len(self.frame_times) and self.frame_times[frame_index] < stop_time_ms:
       frame_index = frame_index + 1
@@ -265,6 +265,15 @@ class DashcamMovementTracker:
 
       out['dense-optical-flow-stills'] = optical_flow_stills
 
+    if sparse_optical_flow:
+      optical_flow = get_sparse_optical_flow(self.frames)
+      out['sparse-optical-flow-video'] = optical_flow
+      optical_flow_stills = []
+      for index in range(max(0, len(optical_flow) - 20), len(optical_flow)):
+        optical_flow_stills.append(optical_flow[index])
+
+      out['sparse-optical-flow-stills'] = optical_flow_stills
+
 
     return out
 
@@ -283,6 +292,49 @@ def get_dense_optical_flow(frames):
     prev_frame = next_frame
     output_frame = numpy.hstack((frames[index], rgb))
     output_frames.append(rgb)
+
+  return output_frames
+
+def get_sparse_optical_flow(frames):
+  prev_frame = None
+  p0 = None
+  first_frame_index = 0
+  output_frames = []
+  while p0 is None:
+    prev_frame = cv2.cvtColor(frames[first_frame_index], cv2.COLOR_BGR2GRAY)
+    im_height, im_width = prev_frame.shape
+    prev_frame = prev_frame[int(im_height/2):im_height, 0:im_width]
+    p0 = cv2.goodFeaturesToTrack(prev_frame, mask=None, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
+    first_frame_index = first_frame_index + 1
+    if p0 is None:
+      output_frames.append(prev_frame)
+  
+  mask = numpy.zeros_like(frames[0])
+  colours = numpy.random.randint(0,255,(100,3))
+  for index in range(first_frame_index, len(frames)):
+    next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
+    next_frame = next_frame[int(im_height/2):im_height, 0:im_width]
+    p1,st,_ = cv2.calcOpticalFlowPyrLK(prev_frame, next_frame, p0, None, winSize=(15,15), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+    if p1 is None:
+      p1 = p0
+    good_new, good_old = p1[st==1], p0[st==1]
+
+    frame_score_x = 0.0
+    frame_score_y = 0.0
+
+    frame = frames[index]
+    for i,(new,old) in enumerate(zip(good_new,good_old)):
+      new_x,new_y = new.ravel()
+      old_x,old_y = old.ravel()
+      new_x,new_y = (int(new_x), int(new_y))
+      old_x,old_y = (int(old_x), int(old_y))
+      mask = cv2.line(mask, (new_x,new_y),(old_x,old_y), colours[i].tolist(), 2)
+      frame = cv2.circle(frames[index].copy(),(new_x, new_y),5,colours[i].tolist(),-1)
+    frame = cv2.add(frame,mask)
+    output_frames.append(frame)
+
+    prev_frame = next_frame.copy()
+    p0 = good_new.reshape(-1,1,2)
 
   return output_frames
 
