@@ -28,6 +28,12 @@ FRAME_SIZE = (int(720/2), int(1280/2))
 KINETICS_STATS = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
 SLOWFAST_ALPHA = 4
 
+class Flatten(torch.nn.Module):
+  def __init__(self):
+      super(Flatten, self).__init__()
+  def forward(self, x):
+      return x.view(x.size(0), -1)
+
 class DensenetClassificationImageModel(pytorch_lightning.LightningModule):
   def __init__(self):
     super(DensenetClassificationImageModel, self).__init__()
@@ -36,6 +42,13 @@ class DensenetClassificationImageModel(pytorch_lightning.LightningModule):
 
   def forward(self, x):
     return self.model(x)
+
+  def features_function(self, feats):
+    return self.model.features(feats)
+
+  def classification_function(self, feats):
+    class_fn = torch.nn.Sequential(*([torch.nn.AvgPool2d(11, 10), Flatten()] + [self.model.classifier]))
+    return class_fn(feats)
 
 class ResnetClassificationImageModel(pytorch_lightning.LightningModule):
   def __init__(self):
@@ -200,6 +213,18 @@ slowfast_video_transforms = torchvision.transforms.Compose(
   ]
 )
 
+def gradCAM(input_tensor, c, model):
+  feats = model.features_function(input_tensor)
+  _, N, H, W = feats.size()
+  out = model.classification_function(feats)
+  c_score = out[0, c]
+  grads = torch.autograd.grad(c_score, feats)
+  w = grads[0][0].mean(-1).mean(-1)
+  sal = torch.matmul(w, feats.view(N, H*W))
+  sal = sal.view(H, W).detach().numpy()
+  sal = numpy.maximum(sal, 0)
+  return sal
+
 parser = ArgumentParser()
 
 parser.add_argument('--model', dest='model_file', action='store', help='File name of the model to use')
@@ -208,8 +233,9 @@ parser.add_argument('--regression', dest='regression', action='store_true', help
 parser.add_argument('--images', dest='images', action='store', help = 'Use the specified image type default multi-still')
 parser.add_argument('--arch', dest='arch', action='store', help = 'Network arch to use default resnet50')
 parser.add_argument('--csv', dest='csv', action='store_true', help ='Output as CSV')
+parser.add_argument('--grad-cam', dest='grad_cam', action='store_true', help='Generate gradcam images')
 
-parser.set_defaults(config = 'cfg/kastria-local.json', regression = False, images='multi-still', arch='resnet50', csv=False)
+parser.set_defaults(config = 'cfg/kastria-local.json', regression = False, images='multi-still', arch='resnet50', csv=False, grad_cam=False)
 args = parser.parse_args()
 
 CONFIG = BDDConfig(args.config)
@@ -254,13 +280,23 @@ def run_inference(image_file_name):
   input_tensor = input_tensor.unsqueeze(0)
   output_tensor = model.forward(input_tensor)
   if args.regression:
-    return output_tensor[0].item()
+    return (output_tensor[0].item(), None)
+
   _, y_hat = output_tensor.max(1)
-  return y_hat.item()
-  
-  if output_tensor[0] > output_tensor[1]:
-    return 0
-  return 1
+  grad_cam = None
+  if args.grad_cam:
+    model_softmax = torch.nn.Softmax(dim=1)(output_tensor)
+    pp, cc = torch.topk(model_softmax, 2)
+    for i, (p, c) in enumerate(zip(pp[0], cc[0])):
+      if c == y_hat.item():
+        sal = gradCAM(input_tensor, int(c), model)
+        image = cv2.imread(image_file_name)
+        sal = numpy.uint8(255 * sal)
+        sal = cv2.resize(sal, (image.shape[1], image.shape[0]))
+        sal = cv2.applyColorMap(sal, cv2.COLORMAP_JET)
+        grad_cam = numpy.uint8(sal * 0.6 + image * 0.4)
+
+  return (y_hat.item(), grad_cam)
 
 video_train, video_test = video_stops_from_database(CONFIG)
 
@@ -337,9 +373,12 @@ else:
     image_file_name = None
     if args.images == 'still':
       image_file_name = CONFIG.get_temp_dir() + '/bdd-still/' + video['file_name'] + '-' + str(video['stop_time']) + '/19.jpeg'
+    elif args.images == 'still-sparse-optical-flow':  
+      image_file_name = CONFIG.get_temp_dir() + '/bdd-sparse-optical-flow/' + video['file_name'] + '-' + str(video['stop_time']) + '/19.jpeg'
     elif args.images == 'multi-still':  
       image_file_name = CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']) + '/19.jpeg'
-    model_output = run_inference(image_file_name)
+    
+    model_output, grad_cam = run_inference(image_file_name)
     vid_run_time = (time.time() * 1000) - vid_start_time
     if args.regression:
       min_duration = min(min_duration, model_output)
@@ -362,6 +401,9 @@ else:
         else:
           incorrect[0] = incorrect[0] + 1
       print('Video [' + video['file_name'] + '] stop duration = [' + str(video['start_time'] - video['stop_time']) + '] long stop = [' + str(video['long_stop']) + '] predicted = [' + str(model_output) + ']')
+      if args.grad_cam:
+        grad_cam_file_name = CONFIG.get_temp_dir() + '/grad-cam/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
+        cv2.imwrite(grad_cam_file_name, grad_cam)
 
 end_time = time.time() * 1000
 
