@@ -233,39 +233,56 @@ if not (args.cam is None or args.cam == 'GradCAM' or args.cam == 'ScoreCAM' or a
   print('Invalid argument for --cam ' + args.cam)
   exit()
 
-model = None
-if args.regression:
-  if args.arch == 'resnet50':
-    if args.images == 'video':
-      model = ResnetRegressionVideoModel.load_from_checkpoint(args.model_file)
+def load_model():
+  if args.regression:
+    if args.arch == 'resnet50':
+      if args.images == 'video':
+        model = ResnetRegressionVideoModel.load_from_checkpoint(args.model_file)
+      else:
+        model = ResnetRegressionImageModel.load_from_checkpoint(args.model_file)
+    elif args.arch == 'densenet121':
+      model = DensenetRegressionImageModel.load_from_checkpoint(args.model_file)
+    elif args.arch == 'efficientnet_b7':
+      model = EfficientnetRegressionImageModel.load_from_checkpoint(args.model_file)
+    elif args.arch == 'slowfast':
+      model = SlowFastRegressionVideoModel.load_from_checkpoint(args.model_file)
     else:
-      model = ResnetRegressionImageModel.load_from_checkpoint(args.model_file)
-  elif args.arch == 'densenet121':
-    model = DensenetRegressionImageModel.load_from_checkpoint(args.model_file)
-  elif args.arch == 'efficientnet_b7':
-    model = EfficientnetRegressionImageModel.load_from_checkpoint(args.model_file)
-  elif args.arch == 'slowfast':
-    model = SlowFastRegressionVideoModel.load_from_checkpoint(args.model_file)
+      print(f'{args.arch} is not valid arch, please use resnet50, densenet121, efficientnet_b7, slowfast')
+      exit()
   else:
-    print(f'{args.arch} is not valid arch, please use resnet50, densenet121, efficientnet_b7, slowfast')
-    exit()
-else:
-  if args.arch == 'resnet50':
-    if args.images == 'video':
-      model = ResnetClassificationVideoModel.load_from_checkpoint(args.model_file)
+    if args.arch == 'resnet50':
+      if args.images == 'video':
+        model = ResnetClassificationVideoModel.load_from_checkpoint(args.model_file)
+      else:
+        model = ResnetClassificationImageModel.load_from_checkpoint(args.model_file)
+    elif args.arch == 'densenet121':
+      model = DensenetClassificationImageModel.load_from_checkpoint(args.model_file)
+    elif args.arch == 'efficientnet_b7':
+      model = EfficientnetClassificationImageModel.load_from_checkpoint(args.model_file)
+    elif args.arch == 'slowfast':
+      model = SlowFastClassificationVideoModel.load_from_checkpoint(args.model_file)
     else:
-      model = ResnetClassificationImageModel.load_from_checkpoint(args.model_file)
-  elif args.arch == 'densenet121':
-    model = DensenetClassificationImageModel.load_from_checkpoint(args.model_file)
-  elif args.arch == 'efficientnet_b7':
-    model = EfficientnetClassificationImageModel.load_from_checkpoint(args.model_file)
-  elif args.arch == 'slowfast':
-    model = SlowFastClassificationVideoModel.load_from_checkpoint(args.model_file)
-  else:
-    print(f'{args.arch} is not valid arch, please use resnet50, densenet121, efficientnet_b7, slowfast')
-    exit()
+      print(f'{args.arch} is not valid arch, please use resnet50, densenet121, efficientnet_b7, slowfast')
+      exit()
 
-model.eval()
+  model.eval()
+
+  return model
+
+
+
+def load_cam_model():
+  if args.cam == 'GradCAM':
+    return (GradCAM(model.model, cam_target_layer), True)
+  elif args.cam == 'ScoreCAM':
+    return (ScoreCAM(model.model, cam_target_layer), False)
+  elif args.cam == 'SmoothGradCAMpp':
+    return (SmoothGradCAMpp(model.model, cam_target_layer), True)
+  elif args.cam == 'GradCAMpp':
+    return (GradCAMpp(model.model, cam_target_layer), True)
+
+model = load_model()
+cam_model, reload_cam_model = load_cam_model()
 
 cam_target_layer = None
 if args.arch == 'densenet121':
@@ -354,16 +371,7 @@ if args.images == 'video':
 
 else:
 
-  cam_model = None
-  if args.cam == 'GradCAM':
-    cam_model = GradCAM(model.model, cam_target_layer)
-  elif args.cam == 'ScoreCAM':
-    cam_model = ScoreCAM(model.model, cam_target_layer)
-  elif args.cam == 'SmoothGradCAMpp':
-    cam_model = SmoothGradCAMpp(model.model, cam_target_layer)
-  elif args.cam == 'GradCAMpp':
-    cam_model = GradCAMpp(model.model, cam_target_layer)
-
+  video_count = 0
   for video in video_test:
     vid_start_time = time.time() * 1000
     image_file_name = None
@@ -411,6 +419,14 @@ else:
         torchvision.utils.save_image(cam, cam_file_name)
         cam = None
         input_tensor = None
+
+        if reload_cam_model and (video_count % 10 == 0):
+          cam_model = None
+          model = None
+          
+          model = load_model()
+          cam_model, reload_cam_model = load_cam_model()
+    video_count = video_count + 1
 
 end_time = time.time() * 1000
 
