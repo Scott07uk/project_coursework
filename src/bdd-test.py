@@ -272,6 +272,15 @@ def load_model():
 
 
 def load_cam_model():
+  if args.cam == None:
+    return (None, False)
+
+  cam_target_layer = None
+  if args.arch == 'densenet121':
+    cam_target_layer = model.model.features.denseblock4.denselayer16.conv2
+  else:
+    print(f'{cam.arch} is not supported with CAM')
+  
   if args.cam == 'GradCAM':
     return (GradCAM(model.model, cam_target_layer), True)
   elif args.cam == 'ScoreCAM':
@@ -282,10 +291,6 @@ def load_cam_model():
     return (GradCAMpp(model.model, cam_target_layer), True)
 
 model = load_model()
-
-cam_target_layer = None
-if args.arch == 'densenet121':
-  cam_target_layer = model.model.features.denseblock4.denselayer16.conv2
 
 cam_model, reload_cam_model = load_cam_model()
 
@@ -406,7 +411,7 @@ else:
         else:
           incorrect[0] = incorrect[0] + 1
       print('Video [' + video['file_name'] + '] stop duration = [' + str(video['start_time'] - video['stop_time']) + '] long stop = [' + str(video['long_stop']) + '] predicted = [' + str(model_output) + ']')
-      if args.cam is not None and cam_target_layer is not None:
+      if args.cam is not None:
         cam_dir = CONFIG.get_temp_dir() + '/' + args.cam
         cam_dir_path = pathlib.Path(cam_dir)
         if not cam_dir_path.exists():
