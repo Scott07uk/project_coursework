@@ -22,6 +22,7 @@ import pytorchvideo.transforms
 import os
 import time
 import torchvision.transforms._transforms_video
+from cam import GradCAM, ScoreCAM, SmoothGradCAMpp, GradCAMpp, reverse_normalize, visualize
 
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
@@ -213,18 +214,6 @@ slowfast_video_transforms = torchvision.transforms.Compose(
   ]
 )
 
-def gradCAM(input_tensor, c, model):
-  feats = model.features_function(input_tensor)
-  _, N, H, W = feats.size()
-  out = model.classification_function(feats)
-  c_score = out[0, c]
-  grads = torch.autograd.grad(c_score, feats)
-  w = grads[0][0].mean(-1).mean(-1)
-  sal = torch.matmul(w, feats.view(N, H*W))
-  sal = sal.view(H, W).detach().numpy()
-  sal = numpy.maximum(sal, 0)
-  return sal
-
 parser = ArgumentParser()
 
 parser.add_argument('--model', dest='model_file', action='store', help='File name of the model to use')
@@ -233,12 +222,16 @@ parser.add_argument('--regression', dest='regression', action='store_true', help
 parser.add_argument('--images', dest='images', action='store', help = 'Use the specified image type default multi-still')
 parser.add_argument('--arch', dest='arch', action='store', help = 'Network arch to use default resnet50')
 parser.add_argument('--csv', dest='csv', action='store_true', help ='Output as CSV')
-parser.add_argument('--grad-cam', dest='grad_cam', action='store_true', help='Generate gradcam images')
+parser.add_argument('--cam', dest='cam', action='store', help='One of [GradCAM, ScoreCAM, SmoothGradCAMpp, GradCAMpp] to generate CAM images')
 
-parser.set_defaults(config = 'cfg/kastria-local.json', regression = False, images='multi-still', arch='resnet50', csv=False, grad_cam=False)
+parser.set_defaults(config = 'cfg/kastria-local.json', regression = False, images='multi-still', arch='resnet50', csv=False, cam=None)
 args = parser.parse_args()
 
 CONFIG = BDDConfig(args.config)
+
+if not (args.cam is None or args.cam == 'GradCAM' or args.cam == 'ScoreCAM' or args.cam == 'SmoothGradCAMpp' or args.cam == 'GradCAMpp'):
+  print('Invalid argument for --cam ' + args.cam)
+  exit()
 
 model = None
 if args.regression:
@@ -274,29 +267,21 @@ else:
 
 model.eval()
 
+cam_target_layer = None
+if args.arch == 'densenet121':
+  cam_target_layer = model.model.features.denseblock4.denselayer16.conv2
+
 def run_inference(image_file_name):
   pil_input_image = Image.open(image_file_name)
   input_tensor = transforms(pil_input_image)
   input_tensor = input_tensor.unsqueeze(0)
   output_tensor = model.forward(input_tensor)
   if args.regression:
-    return (output_tensor[0].item(), None)
+    return output_tensor[0].item()
 
   _, y_hat = output_tensor.max(1)
-  grad_cam = None
-  if args.grad_cam:
-    model_softmax = torch.nn.Softmax(dim=1)(output_tensor)
-    pp, cc = torch.topk(model_softmax, 2)
-    for i, (p, c) in enumerate(zip(pp[0], cc[0])):
-      if c == y_hat.item():
-        sal = gradCAM(input_tensor, int(c), model)
-        image = cv2.imread(image_file_name)
-        sal = numpy.uint8(255 * sal)
-        sal = cv2.resize(sal, (image.shape[1], image.shape[0]))
-        sal = cv2.applyColorMap(sal, cv2.COLORMAP_JET)
-        grad_cam = numpy.uint8(sal * 0.6 + image * 0.4)
 
-  return (y_hat.item(), grad_cam)
+  return (y_hat.item(), input_tensor)
 
 video_train, video_test = video_stops_from_database(CONFIG)
 
@@ -378,7 +363,7 @@ else:
     elif args.images == 'multi-still':  
       image_file_name = CONFIG.get_temp_dir() + '/bdd-multi-still/' + video['file_name'] + '-' + str(video['stop_time']) + '/19.jpeg'
     
-    model_output, grad_cam = run_inference(image_file_name)
+    model_output, input_tensor = run_inference(image_file_name)
     vid_run_time = (time.time() * 1000) - vid_start_time
     if args.regression:
       min_duration = min(min_duration, model_output)
@@ -401,9 +386,28 @@ else:
         else:
           incorrect[0] = incorrect[0] + 1
       print('Video [' + video['file_name'] + '] stop duration = [' + str(video['start_time'] - video['stop_time']) + '] long stop = [' + str(video['long_stop']) + '] predicted = [' + str(model_output) + ']')
-      if args.grad_cam:
-        grad_cam_file_name = CONFIG.get_temp_dir() + '/grad-cam/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
-        cv2.imwrite(grad_cam_file_name, grad_cam)
+      if args.cam is not None and cam_target_layer is not None:
+        cam_dir = CONFIG.get_temp_dir() + '/' + args.cam
+        cam_dir_path = pathlib.Path(cam_dir)
+        if not cam_dir_path.exists():
+          cam_dir_path.mkdir()
+        cam_file_name = cam_dir + '/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
+
+        cam_model = None
+        if args.cam == 'GradCAM':
+          cam_model = GradCAM(model.model, cam_target_layer)
+        elif args.cam == 'ScoreCAM':
+          cam_model = ScoreCAM(model.model, cam_target_layer)
+        elif args.cam == 'SmoothGradCAMpp':
+          cam_model = SmoothGradCAMpp(model.model, cam_target_layer)
+        elif args.cam == 'GradCAMpp':
+          cam_model = GradCAMpp(model.model, cam_target_layer)
+        
+        original_image = reverse_normalize(input_tensor)
+        cam, idx = cam_model(input_tensor)
+        cam = visualize(original_image, cam)
+
+        torchvision.utils.save_image(cam, cam_file_name)
 
 end_time = time.time() * 1000
 
