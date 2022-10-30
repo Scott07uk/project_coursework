@@ -258,6 +258,7 @@ class DashcamMovementTracker:
 
     if dense_optical_flow:
       optical_flow = get_dense_optical_flow(self.frames)
+      #print(f'{str(len(self.frames))} = {str(len(optical_flow))}, {str(self.fps)}')
       out['dense-optical-flow-video'] = optical_flow
       optical_flow_stills = []
       for index in range(max(0, len(optical_flow) - 20), len(optical_flow)):
@@ -281,7 +282,7 @@ def get_dense_optical_flow(frames):
   prev_frame = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
   hsv = numpy.zeros_like(frames[0])
   hsv[...,1] = 255
-  output_frames = []
+  output_frames = [hsv]
   for index in range(1, len(frames)):
     next_frame = cv2.cvtColor(frames[index], cv2.COLOR_BGR2GRAY)
     flow = cv2.calcOpticalFlowFarneback(prev_frame, next_frame, None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2, flags=0)
