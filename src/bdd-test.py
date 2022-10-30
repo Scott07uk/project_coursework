@@ -408,6 +408,9 @@ else:
         cam = visualize(original_image, cam)
 
         torchvision.utils.save_image(cam, cam_file_name)
+        cam = None
+        input_tensor = None
+        cam_model = None
 
 end_time = time.time() * 1000
 
