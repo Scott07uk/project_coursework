@@ -21,7 +21,7 @@ The following is required to run this project
 
 ### Software
 * Anaconda 3
-  > bob
+  * bob
 
 ## Extracting Stop / Start Times From Real-World Data
 
