@@ -8,8 +8,10 @@ import re
 from BDD import BDDConfig
 import psycopg2
 import psutil
+from argparse import (
+  ArgumentParser
+)
 
-CONFIG = BDDConfig('cfg/kastria-local.json')
 ACTOR_CLASS = 'vehicle.ford.crown'
 ANY_VEHICLE_CLASS = 'vehicle.*'
 ANY_PERSON_CLASS = 'walker.pedestrian.*'
@@ -27,6 +29,15 @@ MEM_USAGE_CARLA = 1.5 * 1024.0 * 1024.0 * 1024.0
 MEM_USAGE_OS = 2 * 1024.0 * 1024.0 * 1024.0
 MEM_USAGE_PER_MIN = 5 * 1024 * 1024 * 1024
 
+parser = ArgumentParser()
+
+parser.add_argument('--carla', dest='carla', action='store', help='The name of the CARLA server to use')
+parser.add_argument('--config', dest='config', action='store', help='The config file to use')
+
+parser.set_defaults(config = 'cfg/kastria-local.json', carla='kastria.worldsofwar.co.uk')
+args = parser.parse_args()
+
+CONFIG = BDDConfig(args.config)
 
 class CarlaSimulation:
   def __init__(self, settings):
@@ -143,7 +154,7 @@ class CarlaSimulation:
     actor = None
     client = None
     try:
-      client = carla.Client('kastria.worldsofwar.co.uk', 2000)
+      client = carla.Client(args.carla, 2000)
       client.set_timeout(120.0)
       self.world = client.load_world(self.settings['map'])
       self.traffic_manager = client.get_trafficmanager(8000)
@@ -219,7 +230,7 @@ class CarlaSimulation:
     print(f'Processed {captured_frame_count} frames for {video_time_sec} seconds of video with {len(movement_tracker.frames)} frames')
     if current_stop is not None:
       stops.append((current_stop, None))
-    movement_tracker.write_video(CONFIG.get_temp_dir() + '/carla/' + str(settings['carla_id']) + '.mp4', include_timings=False)
+    movement_tracker.write_video(CONFIG.get_temp_dir() + '/carla-orig/' + str(settings['carla_id']) + '.mp4', include_timings=False)
 
     return stops
 
