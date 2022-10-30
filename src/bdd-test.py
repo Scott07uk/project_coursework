@@ -282,11 +282,12 @@ def load_cam_model():
     return (GradCAMpp(model.model, cam_target_layer), True)
 
 model = load_model()
-cam_model, reload_cam_model = load_cam_model()
 
 cam_target_layer = None
 if args.arch == 'densenet121':
   cam_target_layer = model.model.features.denseblock4.denselayer16.conv2
+
+cam_model, reload_cam_model = load_cam_model()
 
 def run_inference(image_file_name):
   pil_input_image = Image.open(image_file_name)
