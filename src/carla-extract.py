@@ -183,7 +183,15 @@ with psycopg2.connect(CONFIG.get_psycopg2_conn()) as db:
       stop_array = vid['stops']
       stop_array.append(video)
       row = cursor.fetchone()
-      
+
+def write_video(file_name, frames, fps):
+  height, width, layers = frames[0].shape
+  vid_size = (width, height)
+  out = cv2.VideoWriter(file_name, cv2.VideoWriter_fourcc(*'DIVX'), float(fps), vid_size)
+  for frame in frames:
+    out.write(frame)
+  out.release()
+
 if PERFORM_EXTRACT:
   all_videos = valid_videos + train_videos
   for video in all_videos:
@@ -193,12 +201,16 @@ if PERFORM_EXTRACT:
     multi_still_dir = CONFIG.get_temp_dir() + '/carla-multi-still/' + str(video['stop_id']) + '-' + str(video['stop_time'])
     short_video_file = CONFIG.get_temp_dir() + '/carla-video/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '.mp4'
     dense_optical_flow_still_dir = CONFIG.get_temp_dir() + '/carla-dense-optical-flow/' + str(video['stop_id']) + '-' + str(video['stop_time'])
+    dense_optical_flow_video_file = CONFIG.get_temp_dir() + '/carla-dense-optical-flow/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '.mp4'
     sparse_optical_flow_still_dir = CONFIG.get_temp_dir() + '/carla-sparse-optical-flow/' + str(video['stop_id']) + '-' + str(video['stop_time'])
+    sparse_optical_flow_video_file = CONFIG.get_temp_dir() + '/carla-sparse-optical-flow/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '.mp4'
     still_dir_path = pathlib.Path(still_dir)
     multi_still_dir_path = pathlib.Path(multi_still_dir)
     short_video_file_path = pathlib.Path(short_video_file)
     dense_optical_flow_still_dir_path = pathlib.Path(dense_optical_flow_still_dir)
+    dense_optical_flow_video_file_path = pathlib.Path(dense_optical_flow_video_file)
     sparse_optical_flow_still_dir_path = pathlib.Path(sparse_optical_flow_still_dir)
+    sparse_optical_flow_video_file_path = pathlib.Path(sparse_optical_flow_video_file)
     process = False
     if not still_dir_path.exists():
       still_dir_path.mkdir()
@@ -215,9 +227,14 @@ if PERFORM_EXTRACT:
       if not dense_optical_flow_still_dir_path.exists():
         dense_optical_flow_still_dir_path.mkdir()
         process = True
+      if not dense_optical_flow_video_file_path.exists():
+        process = True
+      
     if args.sparse_optical_flow:
       if not sparse_optical_flow_still_dir_path.exists():
         sparse_optical_flow_still_dir_path.mkdir()
+        process = True
+      if not sparse_optical_flow_video_file_path.exists():
         process = True
 
 
@@ -252,6 +269,11 @@ if PERFORM_EXTRACT:
             optical_flow_stills = output['sparse-optical-flow-stills']
             output_image_name = sparse_optical_flow_still_dir + '/' + str(index) + '.jpeg'
             cv2.imwrite(output_image_name, optical_flow_stills[index])
+        
+        if args.dense_optical_flow:
+          write_video(dense_optical_flow_video_file, output['dense-optical-flow-video'], movement_tracker.fps)
+        if args.sparse_optical_flow:
+          write_video(sparse_optical_flow_video_file, output['sparse-optical-flow-video'], movement_tracker.fps)
         movement_tracker.write_video(short_video_file)
 
       
@@ -634,7 +656,7 @@ def create_video_dataset(videos: typing.List[dict], transforms: typing.Optional[
     labels = {"label": video['duration_class']}
     video_file = CONFIG.get_temp_dir()
     if video['type'] == 'carla':
-      video_file = video_file + '/carla-video/' + str(video['stop_id']) + '.mp4'
+      video_file = video_file + '/carla-video/' + str(video['stop_id']) + '-' + str(video['stop_time']) + '.mp4'
     else:
       video_file = video_file + '/bdd-video/' + video['file_name'] + '-' + str(video['stop_time']) + '.mp4'
     labels['file_name'] = video_file
