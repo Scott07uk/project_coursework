@@ -353,6 +353,17 @@ if args.images == 'video':
       print('Video [' + file_name + '] stop duration = [' + str(video['duration'].item()) + '] long stop = [' + str(video['long_stop'].item()) + '] predicted = [' + str(model_output) + ']')
 
 else:
+
+  cam_model = None
+  if args.cam == 'GradCAM':
+    cam_model = GradCAM(model.model, cam_target_layer)
+  elif args.cam == 'ScoreCAM':
+    cam_model = ScoreCAM(model.model, cam_target_layer)
+  elif args.cam == 'SmoothGradCAMpp':
+    cam_model = SmoothGradCAMpp(model.model, cam_target_layer)
+  elif args.cam == 'GradCAMpp':
+    cam_model = GradCAMpp(model.model, cam_target_layer)
+
   for video in video_test:
     vid_start_time = time.time() * 1000
     image_file_name = None
@@ -392,16 +403,6 @@ else:
         if not cam_dir_path.exists():
           cam_dir_path.mkdir()
         cam_file_name = cam_dir + '/' + video['file_name'] + '-' + str(video['stop_time']) + '.jpeg'
-
-        cam_model = None
-        if args.cam == 'GradCAM':
-          cam_model = GradCAM(model.model, cam_target_layer)
-        elif args.cam == 'ScoreCAM':
-          cam_model = ScoreCAM(model.model, cam_target_layer)
-        elif args.cam == 'SmoothGradCAMpp':
-          cam_model = SmoothGradCAMpp(model.model, cam_target_layer)
-        elif args.cam == 'GradCAMpp':
-          cam_model = GradCAMpp(model.model, cam_target_layer)
         
         original_image = reverse_normalize(input_tensor)
         cam, idx = cam_model(input_tensor)
@@ -410,7 +411,6 @@ else:
         torchvision.utils.save_image(cam, cam_file_name)
         cam = None
         input_tensor = None
-        cam_model = None
 
 end_time = time.time() * 1000
 
