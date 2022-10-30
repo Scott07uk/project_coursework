@@ -98,7 +98,7 @@ class CAM(object):
             prob, idx = torch.max(prob, dim=1)
             idx = idx.item()
             prob = prob.item()
-            print("predicted class ids {}\t probability {}".format(idx, prob))
+            #print("predicted class ids {}\t probability {}".format(idx, prob))
 
         # cam can be calculated from the weights of linear layer and activations
         weight_fc = list(
@@ -163,7 +163,7 @@ class GradCAM(CAM):
             prob, idx = torch.max(prob, dim=1)
             idx = idx.item()
             prob = prob.item()
-            print("predicted class ids {}\t probability {}".format(idx, prob))
+            #print("predicted class ids {}\t probability {}".format(idx, prob))
 
         # caluculate cam of the predicted class
         cam = self.getGradCAM(self.values, score, idx)
@@ -230,7 +230,7 @@ class GradCAMpp(CAM):
             prob, idx = torch.max(prob, dim=1)
             idx = idx.item()
             prob = prob.item()
-            print("predicted class ids {}\t probability {}".format(idx, prob))
+            #print("predicted class ids {}\t probability {}".format(idx, prob))
 
         # caluculate cam of the predicted class
         cam = self.getGradCAMpp(self.values, score, idx)
@@ -248,15 +248,17 @@ class GradCAMpp(CAM):
         idx: predicted class id
         cam: class activation map.  shape=> (1, 1, H, W)
         '''
-
+        #print('a')
         self.model.zero_grad()
-
+        #print('b')
+        #print(score)
+        score = score.cpu()
         score[0, idx].backward(retain_graph=True)
-
+        #print('c')
         activations = values.activations
         gradients = values.gradients
         n, c, _, _ = gradients.shape
-
+        #print('d')
         # calculate alpha
         numerator = gradients.pow(2)
         denominator = 2 * gradients.pow(2)
@@ -361,7 +363,7 @@ class SmoothGradCAMpp(CAM):
         idx = mode(indices)
         prob = mean(probs)
 
-        print("predicted class ids {}\t probability {}".format(idx, prob))
+        #print("predicted class ids {}\t probability {}".format(idx, prob))
 
         return total_cams.data, idx
 
@@ -393,6 +395,7 @@ class ScoreCAM(CAM):
         with torch.no_grad():
             _, _, H, W = x.shape
             device = x.device
+            #print(device)
 
             self.model.zero_grad()
             score = self.model(x)
