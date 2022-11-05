@@ -400,7 +400,9 @@ else:
       else:
         print('Video [' + video['file_name'] + '] stop duration = [' + str(video['duration']) + '] pred duration = [' + str(model_output) + ']')
     else:
+      image_class = '0'
       if video['long_stop']:
+        image_class = '1'
         if model_output == 0:
           incorrect[1] = incorrect[1] + 1
         else:
@@ -410,7 +412,10 @@ else:
           correct[0] = correct[0] + 1
         else:
           incorrect[0] = incorrect[0] + 1
-      print('Video [' + video['file_name'] + '] stop duration = [' + str(video['start_time'] - video['stop_time']) + '] long stop = [' + str(video['long_stop']) + '] predicted = [' + str(model_output) + ']')
+      if args.csv:
+        print(video['file_name'] + ',' + image_class + ',' + str(model_output) + ',' + str(vid_run_time))
+      else:
+        print('Video [' + video['file_name'] + '] stop duration = [' + str(video['start_time'] - video['stop_time']) + '] long stop = [' + str(video['long_stop']) + '] predicted = [' + str(model_output) + ']')
       if args.cam is not None:
         cam_dir = CONFIG.get_temp_dir() + '/' + args.cam
         cam_dir_path = pathlib.Path(cam_dir)
