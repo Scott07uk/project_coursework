@@ -86,13 +86,33 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     return optimizer
 
   def loss_function(self, logits, labels):
-    return F.cross_entropy(logits, labels, weight=self.loss_weights)
+    #orig_loss = F.cross_entropy(logits, labels['class'], weight=self.loss_weights)
+    #print(orig_loss)
+    #print(logits.max(1).indices)
+    #print(labels)
+    #print(len(labels['class']))
+    indices = logits.max(1).indices
+    stop_cost = labels['stop_cost']
+    idle_cost = labels['idle_cost']
+    loss = []
+    for index in range(len(labels['class'])):
+      ind = indices[index]
+      if ind.item() == 0:
+        loss.append(idle_cost[index])
+      else:
+        loss.append(stop_cost[index])
+    loss = torch.sum(torch.as_tensor(loss))
+    loss.requires_grad = True
+    #print(loss)
+    loss = loss.to(device=logits.device)
+    #print(loss)
+    return loss
 
   def training_step(self, train_batch, batch_idx):
     x, y = train_batch
     logits = self.forward(x)
     loss = self.loss_function(logits, y)
-    batch_value = self.train_acc(logits, y)
+    batch_value = self.train_acc(logits, y['class'])
     self.log('train_loss', loss)
     return loss
 
@@ -105,9 +125,9 @@ class DashcamStopTimeModel(pytorch_lightning.LightningModule):
     logits = self.forward(x)
     loss = self.loss_function(logits, y)
     self.log('val_loss', loss)
-    self.val_confusion.update(logits, y)
-    self.valid_acc.update(logits, y)
-    return { 'loss': loss, 'preds': logits, 'target': y}
+    self.val_confusion.update(logits, y['class'])
+    self.valid_acc.update(logits, y['class'])
+    return { 'loss': loss, 'preds': logits, 'target': y['class']}
 
   def validation_epoch_end(self, outputs):
     tb = self.logger.experiment
@@ -144,6 +164,8 @@ class DashcamDataset(Dataset):
     self.data = data
     self.prev_frames = 20
     self.transform = transform
+    self.fuel_per_sec_cost = 0.2020
+    self.fuel_per_start_cost = self.fuel_per_sec_cost * 8
 
   def __len__(self):
     return len(self.data)
@@ -159,7 +181,7 @@ class DashcamDataset(Dataset):
     if video['long_stop']:
       image_class = 1
     image = Image.open(image_file)
-    return self.transform(image).float(), image_class
+    return self.transform(image).float(), {"class":image_class, "stop_cost": self.fuel_per_start_cost, "idle_cost": self.fuel_per_sec_cost * (video['duration'] / 1000)}
 
   def __getitem__(self, ix):
     image_file_index = random.randint(0, self.prev_frames - 1)
