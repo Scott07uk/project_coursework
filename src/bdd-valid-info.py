@@ -44,6 +44,8 @@ total_fuel_cost = 0.0
 for index in range(len(video_test)):
   video = video_test[index]
   stop = stops[index]
+  if (args.stop == 'results'):
+    stop = stop.bool()
 
   if (stop):
     total_fuel_cost = total_fuel_cost + float(args.start_fuel_use)
