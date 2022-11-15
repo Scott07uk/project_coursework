@@ -308,7 +308,7 @@ def get_sparse_optical_flow(frames):
     p0 = cv2.goodFeaturesToTrack(prev_frame, mask=None, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
     first_frame_index = first_frame_index + 1
     if p0 is None:
-      output_frames.append(prev_frame)
+      output_frames.append(frames[first_frame_index])
   
   mask = numpy.zeros_like(frames[0])
   colours = numpy.random.randint(0,255,(100,3))
