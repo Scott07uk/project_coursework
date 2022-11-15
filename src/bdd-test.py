@@ -373,7 +373,10 @@ if args.images == 'video':
           correct[0] = correct[0] + 1
         else:
           incorrect[0] = incorrect[0] + 1
-      print('Video [' + file_name + '] stop duration = [' + str(video['duration'].item()) + '] long stop = [' + str(video['long_stop'].item()) + '] predicted = [' + str(model_output) + ']')
+      if args.csv:
+        print(file_name + ',' + str(video['long_stop'].item()) + ',' + str(model_output) + ',' + str(vid_run_time))
+      else:
+        print('Video [' + file_name + '] stop duration = [' + str(video['duration'].item()) + '] long stop = [' + str(video['long_stop'].item()) + '] predicted = [' + str(model_output) + ']')
 
 else:
 
