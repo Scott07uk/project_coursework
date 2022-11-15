@@ -61,6 +61,7 @@ SLOWFAST_ALPHA = 4
 parser = ArgumentParser()
 parser = pytorch_lightning.Trainer.add_argparse_args(parser)
 parser.add_argument('--perform-extract', dest='perform_extract', action='store_true', help='Perform the extract process from the original source videos')
+parser.add_argument('--arch', dest='arch', action='store', help='Model archetecture to use (default densenet121)')
 parser.add_argument('--dense-optical-flow', dest='dense_optical_flow', action='store_true', help='When extracting images, also extract the dense optical flow')
 parser.add_argument('--sparse-optical-flow', dest='sparse_optical_flow', action='store_true', help='When extracting images, also extract the sparse optical flow')
 parser.add_argument('--perform-carla-mods', dest='perform_carla_mods', action='store_true', help='Perform image modifications (contrast, lighting, blur on the carla images extracted')
@@ -77,10 +78,15 @@ parser.add_argument('--video-train', dest='video_train', action='store_true', he
 parser.add_argument('--use-bdd-and-carla', dest='bdd_and_carla', action='store_true', help='Perform the training process on a multi-frame images')
 parser.add_argument('--carla', dest='carla', action='store', help='Percentage of carla videos to use 1 = 100pct default 1')
 parser.add_argument('--bdd', dest='bdd', action='store', help='Percentage of BDD videos to use 1 = 100pct default 0')
+parser.add_argument('--oversample-training', dest='oversample_training', action='store_true', help='Oversample the training dataset')
 
-parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False, dense_optical_flow = False, sparse_optical_flow = False)
+parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False, dense_optical_flow = False, sparse_optical_flow = False, oversample_training = False, arch='densenet121')
 
 args = parser.parse_args()
+
+if args.arch not in ['densenet121', 'resnet50']:
+  print('Invalid architecture should be [densenet121 | resnet50]')
+  exit()
 
 PERFORM_EXTRACT = args.perform_extract
 PERFORM_SINGLE_FRAME_TRAIN = args.single_frame_train
@@ -301,7 +307,18 @@ if BDD_AND_CARLA:
 
   train_videos = all_train
   valid_videos = all_valid
-  
+
+if args.oversample_training:
+  all_train = []
+  for video in train_videos:
+    if (video['duration'] < 4000 or video['duration'] > 12000):
+      all_train.append(video)
+      if (video['duration'] < 2000 or video['duration'] > 14000):
+        all_train.append(video)
+    all_train.append(video)
+
+  train_videos = all_train
+
 
 print(f'Training Videos = [{len(train_videos)}] validation videos = [{len(valid_videos)}]')
 
@@ -309,9 +326,12 @@ print(f'Training Videos = [{len(train_videos)}] validation videos = [{len(valid_
 class ImageModel(pytorch_lightning.LightningModule):
   def __init__(self, name = None, trainer = None):
     super(ImageModel, self).__init__()
-    self.model = torchvision.models.densenet121(pretrained=True)
-    print(self.model)
-    self.model.classifier = torch.nn.Linear(in_features=1024, out_features=2)
+    if args.arch == 'resnet50':
+      self.model = torchvision.models.resnet50(pretrained=True)
+      self.model.fc = torch.nn.Linear(in_features=2048, out_features=2)
+    else:
+      self.model = torchvision.models.densenet121(pretrained=True)
+      self.model.classifier = torch.nn.Linear(in_features=1024, out_features=2)
 
     self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
     if BDD_AND_CARLA:
@@ -449,6 +469,8 @@ class ImageDataModule(pytorch_lightning.LightningDataModule):
     super().__init__()
     self.NUM_WORKERS = 4
     self.BATCH_SIZE = 12
+    if args.arch == 'resnet50':
+      self.BATCH_SIZE = 18
     self.single_image = single_image
 
   def prepare_data(self):
