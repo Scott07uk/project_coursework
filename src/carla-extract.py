@@ -79,8 +79,10 @@ parser.add_argument('--use-bdd-and-carla', dest='bdd_and_carla', action='store_t
 parser.add_argument('--carla', dest='carla', action='store', help='Percentage of carla videos to use 1 = 100pct default 1')
 parser.add_argument('--bdd', dest='bdd', action='store', help='Percentage of BDD videos to use 1 = 100pct default 0')
 parser.add_argument('--oversample-training', dest='oversample_training', action='store_true', help='Oversample the training dataset')
+parser.add_argument('--oversample-validation', dest='oversample_validation', action='store_true', help='Oversample the validation set')
+parser.add_argument('--increase-class-boundaries', dest='increase_class_boundaries', action='store_true', help='Remove examples from within 2 seconds of the class boundary')
 
-parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False, dense_optical_flow = False, sparse_optical_flow = False, oversample_training = False, arch='densenet121')
+parser.set_defaults(perform_extract = False, single_frame_train = False, multi_frame_train = False, video_train = False, perform_stop_start_extract = False, start_stop_train = False, bdd = 0, carla=1, perform_carla_mods = False, dense_optical_flow = False, sparse_optical_flow = False, oversample_training = False, arch='densenet121', oversample_validation = False, increase_class_boundaries=False)
 
 args = parser.parse_args()
 
@@ -308,17 +310,37 @@ if BDD_AND_CARLA:
   train_videos = all_train
   valid_videos = all_valid
 
-if args.oversample_training:
-  all_train = []
-  for video in train_videos:
+
+
+
+def oversample_list(videos):
+  output = []
+  for video in videos:
     if (video['duration'] < 4000 or video['duration'] > 12000):
-      all_train.append(video)
+      output.append(video)
       if (video['duration'] < 2000 or video['duration'] > 14000):
-        all_train.append(video)
-    all_train.append(video)
+        output.append(video)
+    output.append(video)
+  return output
 
-  train_videos = all_train
+if args.oversample_training:
+  train_videos = oversample_list(train_videos)
 
+if args.oversample_validation:
+  valid_videos = oversample_list(valid_videos)
+
+
+def remove_class_boundary_videos(videos):
+  output = []
+  for video in videos:
+    if (video['duration'] < CLASSIFIER_THRESH - 2000 or video['duration'] > CLASSIFIER_THRESH + 2000):
+      output.append(video)
+  return output
+
+
+if args.increase_class_boundaries:
+  train_videos = remove_class_boundary_videos(train_videos)
+  valid_videos = remove_class_boundary_videos(valid_videos)
 
 print(f'Training Videos = [{len(train_videos)}] validation videos = [{len(valid_videos)}]')
 
