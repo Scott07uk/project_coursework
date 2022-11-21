@@ -33,10 +33,15 @@ parser.add_argument('--dense-optical-flow', dest='dense_optical_flow', action='s
 parser.add_argument('--sparse-optical-flow', dest='sparse_optical_flow', action='store_true', help='When extracting images, also extract the sparse optical flow')
 parser.add_argument('--train-sparse-optical-flow', dest='train_sparse_optical_flow', action='store_true', help='Train a model with the sparse optical flow images')
 parser.add_argument('--train-dense-optical-flow', dest='train_dense_optical_flow', action='store_true', help='Train a model with the dense optical flow images')
+parser.add_argument('--arch', dest='arch', action='store', help='Model archetecture to use (default densenet121)')
 
 
-parser.set_defaults(config = 'cfg/kastria-local.json', perform_extract=False, process_all = False, dense_optical_flow = False, sparse_optical_flow = False, train_sparse_optical_flow = False, train_dense_optical_flow = False)
+parser.set_defaults(config = 'cfg/kastria-local.json', perform_extract=False, process_all = False, dense_optical_flow = False, sparse_optical_flow = False, train_sparse_optical_flow = False, train_dense_optical_flow = False, arch='densenet121')
 args = parser.parse_args()
+
+if args.arch not in ['densenet121', 'resnet50']:
+  print('Invalid architecture should be [densenet121 | resnet50]')
+  exit()
 
 CONFIG = BDDConfig(args.config)
 
@@ -121,9 +126,12 @@ if args.perform_extract:
 class ImageModel(pytorch_lightning.LightningModule):
   def __init__(self, name = None, trainer = None):
     super(ImageModel, self).__init__()
-    self.model = torchvision.models.densenet121(pretrained=True)
-    print(self.model)
-    self.model.classifier = torch.nn.Linear(in_features=1024, out_features=2)
+    if args.arch == 'resnet50':
+      self.model = torchvision.models.resnet50(pretrained=True)
+      self.model.fc = torch.nn.Linear(in_features=2048, out_features=2)
+    else:
+      self.model = torchvision.models.densenet121(pretrained=True)
+      self.model.classifier = torch.nn.Linear(in_features=1024, out_features=2)
 
     self.val_confusion = torchmetrics.ConfusionMatrix(num_classes=2)
     self.loss_weights = torch.FloatTensor([2.3, 4.15]).cuda()
@@ -252,7 +260,10 @@ class ImageDataModule(pytorch_lightning.LightningDataModule):
   def __init__(self, directory):
     super().__init__()
     self.NUM_WORKERS = 5
-    self.BATCH_SIZE = 12
+    if args.arch == 'resnet50':
+      self.BATCH_SIZE = 18
+    else:
+      self.BATCH_SIZE = 12
     self.directory = directory
 
   def prepare_data(self):
