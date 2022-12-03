@@ -16,8 +16,6 @@ import torch
 import os
 import time
 
-#https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09+
-
 random.seed(42)
 
 CONFIG = BDDConfig('cfg/kastria-local.json')
