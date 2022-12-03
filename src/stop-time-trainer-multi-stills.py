@@ -24,8 +24,8 @@ PCT_VALID = 0.2
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
-BATCH_SIZE = 16 #Resnet50
-BATCH_SIZE = 12 #Densenet121
+#BATCH_SIZE = 16 #Resnet50
+#BATCH_SIZE = 12 #Densenet121
 BATCH_SIZE = 3 #EfficientNetB7
 
 video_train = []
