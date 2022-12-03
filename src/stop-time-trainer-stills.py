@@ -25,10 +25,10 @@ PCT_VALID = 0.2
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 FRAME_SIZE = (int(720/2), int(1280/2))
 DEVICE = 'cuda'
-#resnet50
-BATCH_SIZE = 16
-BATCH_SIZE = 12
-BATCH_SIZE = 3
+
+BATCH_SIZE = 16 #Resnet50
+BATCH_SIZE = 12 #Densenet121
+BATCH_SIZE = 3 #EfficientNetB7
 
 video_train = []
 video_valid = []
@@ -79,12 +79,17 @@ def freeze_layers(model, freeze=True):
 class DashcamStopTimeModel(pytorch_lightning.LightningModule):
   def __init__(self):
     super(DashcamStopTimeModel, self).__init__()
-    #self.model = models.resnet50(pretrained=True)
-    #self.model = models.densenet121(pretrained=True)
-    self.model = models.efficientnet_b7(pretrained=True)
-    print(self.model)
+
+    # Resnet 50
+    #self.model = models.resnet50(pretrained=True) 
     #self.model.fc = nn.Linear(in_features=2048, out_features=1)
+
+    #Densenet121
+    #self.model = models.densenet121(pretrained=True) 
     #self.model.classifier = nn.Linear(in_features=1024, out_features=1)
+
+    #EfficientNetB7
+    self.model = models.efficientnet_b7(pretrained=True)
     self.model.classifier[1] = nn.Linear(in_features=2560, out_features=1)
     #freeze_layers(self.model)
 
