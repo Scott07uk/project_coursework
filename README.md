@@ -204,6 +204,12 @@ This code is setup to use the EfficientNetB7 architecture. To change this to use
     #self.model.classifier[1] = nn.Linear(in_features=2560, out_features=1)
 
 
+The following arguments required by pytorch lightning should be added:
+
+    --accelerator - Normally set to 'gpu' when training on a GPU
+    --devices - Normally set to 1 (though can be set to a higher number if multiple training devices are avaliable)
+    --max_epochs - Set to 150 for our experements to limit the number of epochs.
+
 ## Training Classification Models on Real-World Data
 
 Classification models are essentially the same as the regression models with the exception that they output two classes rather than a continious output. Like the regression models there are 4 different scripts:
@@ -216,5 +222,21 @@ Classification models are essentially the same as the regression models with the
 The same notes apply regarding changes to the code as per the regression models.
 
 ## Training Classification Models on Combined Data
+
+The carla-extract script is used for training these models, it is suggested that the extract is completed before running any training (though you can run the extract and train at the same time). However, when training with BDD data the data must have been extracted first. The script src/carla-extract.py should be run with the following arguments:
+
+    --accelerator - Normally set to 'gpu' when training on a GPU
+    --devices - Normally set to 1 (though can be set to a higher number if multiple training devices are avaliable)
+    --max_epochs - Set to 150 for our experements to limit the number of epochs.
+    --arch - Network architecture to use, one of resnet50, densenet121, defaults to densenet121
+    --single-frame-train - Trains based on a single still extracted at the moment of stop (plus the 19 previous stills)
+    --multi-frame-train - Trains based on the 3 channel multi still (plus the 19 previous stills)
+    --start-stop-train - Trains a network to classify stills into moving and not moving
+    --video-train - Trains a network based on videos (this will use the SlowFast architecture)
+    --use-bdd-and-carla - Indicates that the BDD and data should be combined (use with --carla and --bdd)
+    --carla - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all)
+    --bdd - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all)
+    --oversample-training - Switch on the oversampling of the training set
+    --oversample-validation - Switch on the oversampling of the validation set
 
 ## Testing / Understanding Models
