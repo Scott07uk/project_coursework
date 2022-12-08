@@ -22,6 +22,7 @@ import pytorchvideo.transforms
 import os
 import time
 import torchvision.transforms._transforms_video
+import pandas
 from cam import GradCAM, ScoreCAM, SmoothGradCAMpp, GradCAMpp, reverse_normalize, visualize
 
 IMAGENET_STATS = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -217,6 +218,8 @@ slowfast_video_transforms = torchvision.transforms.Compose(
 parser = ArgumentParser()
 
 parser.add_argument('--model', dest='model_file', action='store', help='File name of the model to use')
+parser.add_argument('--extract-test-set', dest='extract_test_set', action='store_true', help='Extract the test set to a csv')
+parser.add_argument('--test-set-file', dest='test_set_file', action='store', help='File with details of the test set to use')
 parser.add_argument('--config', dest='config', action='store', help='The config file to use')
 parser.add_argument('--regression', dest='regression', action='store_true', help = 'Test a regression model')
 parser.add_argument('--images', dest='images', action='store', help = 'Use the specified image type default multi-still')
@@ -278,8 +281,10 @@ def load_cam_model():
   cam_target_layer = None
   if args.arch == 'densenet121':
     cam_target_layer = model.model.features.denseblock4.denselayer16.conv2
+  elif args.arch == 'resnet50':
+    cam_target_layer = model.model.layer4[1].conv3
   else:
-    print(f'{cam.arch} is not supported with CAM')
+    print(f'{args.arch} is not supported with CAM')
   
   if args.cam == 'GradCAM':
     return (GradCAM(model.model, cam_target_layer), True)
@@ -290,9 +295,6 @@ def load_cam_model():
   elif args.cam == 'GradCAMpp':
     return (GradCAMpp(model.model, cam_target_layer), True)
 
-model = load_model()
-
-cam_model, reload_cam_model = load_cam_model()
 
 def run_inference(image_file_name):
   pil_input_image = Image.open(image_file_name)
@@ -306,13 +308,42 @@ def run_inference(image_file_name):
 
   return (y_hat.item(), input_tensor)
 
-video_train, video_test = video_stops_from_database(CONFIG)
+def load_test_set_from_file(file_name):
+  out = []
+  data_frame = pandas.read_csv(file_name)
+  for index,row in data_frame.iterrows():
+    video = {'file_name': row['file_name'], 'file_type': row['file_type'], 'stop_time': row['stop_time'], 'start_time': row['start_time'], 'duration': row['duration'], 'long_stop': row['long_stop'], 'type': row['type']}
+    out.append(video)
+  return out
+
+
+video_train = []
+video_test = []
+if (args.test_set_file is None):
+  video_train, video_test = video_stops_from_database(CONFIG)
+else:
+  video_test = load_test_set_from_file(args.test_set_file)
+  video_train = []
+
 
 correct = [0, 0]
 incorrect = [0, 0]
 total_error_sec = 0
 min_duration = 99999999
 max_duration = 0
+
+if (args.extract_test_set == True):
+  print('file_name,file_type,stop_time,start_time,duration,long_stop,type')
+
+  for video in video_test:
+    print('"' + video['file_name'] + '",' + video['file_type'] + ',' + str(video['stop_time']) + ',' + str(video['start_time']) + ',' + str(video['duration']) + ',' + str(video['long_stop']) + ',' + video['type'])
+
+  exit()
+
+model = load_model()
+#print(model.model)
+
+cam_model, reload_cam_model = load_cam_model()
 
 if args.csv:
   print('FileName,Actual,Predicted,InferenceTime')
