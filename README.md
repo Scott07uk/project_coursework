@@ -21,8 +21,26 @@ The following is required to run this project
 
 ### Software
 * Anaconda 3 (with the following modules installed)
-  * bob
+  * ffmpeg-python
+  * numpy
+  * opencv
+  * pandas
+  * pillow
+  * psycopg2
+  * pytorch
+  * pytorch-lightning
+  * pytorch-mutex
+  * pytorchvideo
+  * scipy
+  * seaborn
+  * tensorboard
+  * tensorboard-data-server
+  * tensorboard-plugin-wit
+  * torch
+  * torchmetrics
+  * torchvision
 * ffmpeg (version 4.4 with ffprobe)
+* openCV (version 4.5.5, note a breaking change has been introduced in newer versions of open CV)
 * Nvidia graphics card drives for your selected GPU
 * Nvidia CUDA 11.4
 * PostgreSQL (any supported version)
