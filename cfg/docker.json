@@ -1,0 +1,21 @@
+{
+  "typesToLoad": ["train", "val"],
+  "infoDirs": {
+    "train": "/mnt/usb/bdd/bdd100k/info/100k",
+    "val": "/mnt/usb/bdd/bdd100k/info/100k"
+  },
+  "videoDirs":{ 
+    "train": "/mnt/usb/bdd/bdd100k/videos",
+    "val": "/mnt/usb/bdd/bdd100k/videos"
+  },
+  "metadataDir": "/mnt/usb/ndd/meta",
+  "stopGPSSpeed": 0.0,
+  "minPlayTimeBeforeStop": 1000,
+  "minStopDurationMS": 1000,
+  "maxReadFiles": 5000,
+  "workersToUse": 1,
+  "dbHost": "oseidon.worldsofwar.co.uk",
+  "tmpDir": "/usr/local/project/data/",
+  "cleanTmpDir": false,
+  "windowsTmpDir": "D:\\data\\"
+}
