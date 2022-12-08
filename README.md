@@ -2,15 +2,12 @@
 
 ## Introduction
 
-This project attempts to take video recorded on dash-cams, when the vehicle stops moving a prediction is made if the vehicle will start 
-moving again within 8 seconds. Eight seconds is the time at which it becomes a fuel saving to stop the engine from running, any stop
-less than 8 seconds, the extra fuel required to start the engine will be more than the fuel saved by stoping the engine.
+This project attempts to take video recorded on dash-cams, when the vehicle stops moving a prediction is made if the vehicle will start moving again within 8 seconds. Eight seconds is the time at which it becomes a fuel saving to stop the engine from running, any stop less than 8 seconds, the extra fuel required to start the engine will be more than the fuel saved by stopping the engine.
 
-The intention is to save fuel in vehicles with internal combusion engines by only activating any start-stop/Intelligence Stop & Go (ISG)
-technology if a genuine fuel saving will be made.
+The intention is to save fuel in vehicles with internal combustion engines by only activating any start-stop/Intelligence Stop & Go (ISG) technology if a genuine fuel saving will be made.
 
-This readme takes you through all the steps to run the project, alternativly you can jump straight to the last seconds to run the results
-and see the visualisations.
+This readme takes you through all the steps to run the project, alternatively you can jump straight to the last seconds to run the results and see the visualisations.
+
 
 ## Requirements
 
@@ -28,7 +25,7 @@ The following is required to run this project
 * ffmpeg (version 4.4 with ffprobe)
 * Nvidia graphics card drives for your selected GPU
 * Nvidia CUDA 11.4
-* Postgres (any supported version)
+* PostgreSQL (any supported version)
 
 ### Setup
 You will need to prime your postgres database with some of the relevant data, you can either:
@@ -44,18 +41,17 @@ To create an empty database run the following SQL files into your DB:
 
 You will now have a database primed with the data for the CARLA simulation and the list of BDD videos.
 
-To import the existing data run the follwing SQL file into your DB:
+To import the existing data run the following SQL file into your DB:
 
  * sql/pg_dump.sql
 
 You will need to ensure you have downloads the relevant carla-original files that go with this.
 
-Processes that update the database are able to run on multiple machines at the same time, this will allow you to increase the amount of 
-data you process by running the same process on multiple machines.
+Processes that update the database are able to run on multiple machines at the same time, this will allow you to increase the amount of data you process by running the same process on multiple machines.
 
 ### Config
 
-You will need to write a config file which has the details of where you want your temp data to be kept (this can be big and will be used extensivly during training) and also the location of your database. The default name of the config file is cfg/kastria-local.json (which is the name of the machine used for most training work).  You can edit the checked in file to fit your own setup.
+You will need to write a configuration file which has the details of where you want your temp data to be kept (this can be big and will be used extensively during training) and also the location of your database. The default name of the config file is cfg/kastria-local.json (which is the name of the machine used for most training work). You can edit the checked in file to fit your own setup.
 
 
 ## Extracting Stop / Start Times From Real-World Data
@@ -69,7 +65,7 @@ Run the following command:
     python src/meta-gen-bdd.py
 
 
-The process is already multi-threaded and will use multiple cores on a single machine, only a very limited performance gain will be achived by running multiple copies on the same machine (unless your machine has a very high core count)
+The process is already multi-threaded and will use multiple cores on a single machine, only a very limited performance gain will be achieved by running multiple copies on the same machine (unless your machine has a very high core count).
 
 ## Generating Data With CARLA
 
@@ -107,7 +103,7 @@ There are two different processes to do this, but they both use the same functio
 
  * \<TYPE\>-still - single still at the moment of the stop
  * \<TYPE\>-multi-still - Single image using three different colour channels to represent moment of stop, 2 seconds before stop, 4 seconds before stop
- * \<TYPE\>-video - Six second video preceeding the stop
+ * \<TYPE\>-video - Six second video preceding the stop
 
 \<TYPE\> will be replaced by the type (eg BDD or CARLA).  The format of the file names is the same for all videos which is:
 
@@ -119,7 +115,7 @@ CARLA and BDD use different identifiers, CARLA uses the stop ID which the databa
 Therefore the following filenames can be taken as examples:
 
  * bdd-video/02bb67ae-8c3d61f8.mov-14363.0.mp4 - BDD video file 02bb67ae-8c3d61f8.mov where the stop is 14363.0 milliseconds into the video
- * bdd-multi-still/02cdc06d-5502f174.mov-22542.0/19.jpeg - BDD image from 02cdc06d-5502f174.mov for a stop that occured 22542.0 milliseconds into the video at the moment the stop occurred
+ * bdd-multi-still/02cdc06d-5502f174.mov-22542.0/19.jpeg - BDD image from 02cdc06d-5502f174.mov for a stop that occurred 22542.0 milliseconds into the video at the moment the stop occurred
  * carla-still/988-54.234/9.jpeg - CARLA image for stop ID 988 which occurred 54.234 seconds into the video, 10 frames back from the moment of stop.
 
 NOTE: CARLA videos are timed in seconds and BDD videos are times in milliseconds, this was an accidental oversight and could be corrected in the future.
@@ -131,16 +127,16 @@ BDD Data is extracting using the following python script:
 
 There are a number of parameters that you can provide to the script to control how the extract works
 
-    --config <config-file> - Defaults to cfg/kastria-local.json
+    --config \<config-file\> - Defaults to cfg/kastria-local.json (optional)
     --perform-extract - Extracts data from the source videos
-    --process-all - If this is set then the videos will always be processed, if not set, it will only process missiong ones
-    --dense-optical-flow - Extract the dense optical flow files
-    --sparse-optical-flow - Extract the sparse optical flow files
-    --train-sparse-optical-flow - Train a classifier for long/short stops using the sparse optical flow files
-    --train-dense-optical-flow - Train a classifier for long/short stops using the dense optical flow files
-    --arch - Either resnet50 or densenet121 (default). Architecture to use for the sparse/dense optical flow models
+    --process-all - If this is set then the videos will always be processed, if not set, it will only process missing ones (optional)
+    --dense-optical-flow - Extract the dense optical flow files (optional)
+    --sparse-optical-flow - Extract the sparse optical flow files (optional)
+    --train-sparse-optical-flow - Train a classifier for long/short stops using the sparse optical flow files (optional)
+    --train-dense-optical-flow - Train a classifier for long/short stops using the dense optical flow files (optional)
+    --arch - Either [resnet50 or densenet121] (default is densenet121). Architecture to use for the sparse/dense optical flow models  (optional)
 
-Data is extracted to the tempDir listed in the config file
+Data is extracted to the tempDir listed in the configuration file
 
 ### Extracting CARLA data
 CARLA data is extracted (from the raw generated videos) using the following python script (note this script is also used for training synthetic data and combined models):
@@ -150,10 +146,10 @@ CARLA data is extracted (from the raw generated videos) using the following pyth
 There are a number of parameters that you can provide to the script to control how the extract works:
 
     --perform-extract - Set this to run the extract
-    --dense-optical-flow - Set to extract the dense optical flow data
-    --sparse-optical-flow - Set to extract the sparse optical flow data
-    --perform-carla-mods - Perform random augmentations on the images before outputing (blur / lighting / contrast)
-    --perform-stop-start-extract - Extract the frames which are stationary / moving for training stationary / moving models
+    --dense-optical-flow - Set to extract the dense optical flow data (optional)
+    --sparse-optical-flow - Set to extract the sparse optical flow data (optional)
+    --perform-carla-mods - Perform random augmentations on the images before outputting (blur / lighting / contrast) (optional)
+    --perform-stop-start-extract - Extract the frames which are stationary / moving for training stationary / moving models (optional)
 
 NOTE: There are further parameters for carla-extract.py which are used for training models, these are explained in the training sections.
 
@@ -206,13 +202,13 @@ This code is setup to use the EfficientNetB7 architecture. To change this to use
 
 The following arguments required by pytorch lightning should be added:
 
-    --accelerator - Normally set to 'gpu' when training on a GPU
-    --devices - Normally set to 1 (though can be set to a higher number if multiple training devices are avaliable)
-    --max_epochs - Set to 150 for our experements to limit the number of epochs.
+--accelerator \<device\> - Normally set to 'gpu' when training on a GPU
+--devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
+--max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
 
 ## Training Classification Models on Real-World Data
 
-Classification models are essentially the same as the regression models with the exception that they output two classes rather than a continious output. Like the regression models there are 4 different scripts:
+Classification models are essentially the same as the regression models with the exception that they output two classes rather than a continuous output. Like the regression models there are 4 different scripts:
 
 * src/stop-time-trainer-stills-classifier.py - Trains using the single still at the moment of stop using Resnet50 / Densenet121 / EfficientNet B7
 * src/stop-time-trainer-multi-stills-classifier.py - Trains using the three channel still at the moment of stop using Resnet50 / Densenet121 / EfficientNet B7
@@ -225,18 +221,57 @@ The same notes apply regarding changes to the code as per the regression models.
 
 The carla-extract script is used for training these models, it is suggested that the extract is completed before running any training (though you can run the extract and train at the same time). However, when training with BDD data the data must have been extracted first. The script src/carla-extract.py should be run with the following arguments:
 
-    --accelerator - Normally set to 'gpu' when training on a GPU
-    --devices - Normally set to 1 (though can be set to a higher number if multiple training devices are avaliable)
-    --max_epochs - Set to 150 for our experements to limit the number of epochs.
-    --arch - Network architecture to use, one of resnet50, densenet121, defaults to densenet121
-    --single-frame-train - Trains based on a single still extracted at the moment of stop (plus the 19 previous stills)
-    --multi-frame-train - Trains based on the 3 channel multi still (plus the 19 previous stills)
-    --start-stop-train - Trains a network to classify stills into moving and not moving
-    --video-train - Trains a network based on videos (this will use the SlowFast architecture)
-    --use-bdd-and-carla - Indicates that the BDD and data should be combined (use with --carla and --bdd)
-    --carla - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all)
-    --bdd - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all)
-    --oversample-training - Switch on the oversampling of the training set
-    --oversample-validation - Switch on the oversampling of the validation set
+--accelerator \<device\> - Normally set to 'gpu' when training on a GPU
+--devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
+--max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
+--arch \<arch\> - Network architecture to use, one of resnet50, densenet121, defaults to densenet121 (optional)
+--single-frame-train - Trains based on a single still extracted at the moment of stop (plus the 19 previous stills) (optional)
+--multi-frame-train - Trains based on the 3 channel multi still (plus the 19 previous stills) (optional)
+--start-stop-train - Trains a network to classify stills into moving and not moving (optional)
+--video-train - Trains a network based on videos (this will use the SlowFast architecture) (optional)
+--use-bdd-and-carla - Indicates that the BDD and data should be combined (use with --carla and --bdd) (optional)
+--carla \<percentage\> - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all) (optional)
+--bdd \<percentage\> - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all) (optional)
+--oversample-training - Switch on the oversampling of the training set (optional)
+--oversample-validation - Switch on the oversampling of the validation set (optional)
 
 ## Testing / Understanding Models
+
+Two dedicated scripts are used for testing models:
+
+ * src/bdd-test.py - This tests a model against the validation set and outputs classification results and optionally GradCAM / ScoreCAM
+ * src/bdd-valid-info.py - This takes in the CSV of results (which is produced by bdd-test.py) and settings of your target vehicle, from this is can calculate the fuel used as a result of your model.
+
+### Step 1: Test the model
+This step generates the accuracy of the model and tests it against the test set. The output from this can then be optionally fed into the second script to calculate the fuel usage. The following python script will need to be run:
+
+    src/bdd-test.py
+
+The following arguments can be provided:
+
+    --model \<file-name\> - The model file to test
+    --config \<config-file\> - The config file to use, defaults to cfg/kastria-local.json (optional)
+    --regression - Should test a regression model rather than a classification model (defaults to classification) (optional)
+    --images \<image-type\> - One of: [still, multi-still, video] depending on what type of images you want to test with
+    --arch \<arch\> - One of [resnet50, densenet121, efficientnet_b7, slowfast] (slowfast can only be used with --images video), the architecture of the model
+    --csv - Output the results in CSV format rather than in human readable format (default is human readable) (optional)
+    --cam \<cam-type\> - One of [GradCAM, ScoreCAM, SmoothGradCAMpp, GradCAMpp] Generates CAM images (only GradCAM and ScoreCAM have been tested).  NOTE a bug exists with GradCAM in the library https://github.com/yiskw713/ScoreCAM, GradCAM has a memory leak and will crash when memory runs out. (optional)
+
+Example (assuming Linux style command line):
+
+    python src/bdd-test.py --model models/my-model.ckpt --images still --csv --cam ScoreCAM >> results.csv
+
+This will write the results to CSV file called results.csv. Once the results have been generated they should be saved as a CSV should you want to use the next process.
+
+### Step 2: Examine Fuel Usage
+This step uses the output from step 1 to calculate the fuel usage:
+
+src/bdd-valid-info.py
+
+The following arguments can be provided:
+
+--config \<config-file\> - The config file to use, detauls to cfg/kastria-local.json (optional)
+--idle-fuel-use \<ml-per-second\> - The amount of fuel (ml) your target vehicle burns per second when idling
+--start-fuel-use \<ml\> - The amount of fuel used in starting the engine
+--results-csv \<file-name\> - The name of a CSV file with the results of your test (optional)
+--stop \<stop-type\> - One of [always, never, results] Assume the engine always stops, never stops or stops based on the decision in the results file
