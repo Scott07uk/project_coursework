@@ -220,9 +220,9 @@ This code is setup to use the EfficientNetB7 architecture. To change this to use
 
 The following arguments required by pytorch lightning should be added:
 
---accelerator \<device\> - Normally set to 'gpu' when training on a GPU
---devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
---max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
+    --accelerator \<device\> - Normally set to 'gpu' when training on a GPU
+    --devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
+    --max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
 
 ## Training Classification Models on Real-World Data
 
@@ -239,19 +239,19 @@ The same notes apply regarding changes to the code as per the regression models.
 
 The carla-extract script is used for training these models, it is suggested that the extract is completed before running any training (though you can run the extract and train at the same time). However, when training with BDD data the data must have been extracted first. The script src/carla-extract.py should be run with the following arguments:
 
---accelerator \<device\> - Normally set to 'gpu' when training on a GPU
---devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
---max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
---arch \<arch\> - Network architecture to use, one of resnet50, densenet121, defaults to densenet121 (optional)
---single-frame-train - Trains based on a single still extracted at the moment of stop (plus the 19 previous stills) (optional)
---multi-frame-train - Trains based on the 3 channel multi still (plus the 19 previous stills) (optional)
---start-stop-train - Trains a network to classify stills into moving and not moving (optional)
---video-train - Trains a network based on videos (this will use the SlowFast architecture) (optional)
---use-bdd-and-carla - Indicates that the BDD and data should be combined (use with --carla and --bdd) (optional)
---carla \<percentage\> - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all) (optional)
---bdd \<percentage\> - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all) (optional)
---oversample-training - Switch on the oversampling of the training set (optional)
---oversample-validation - Switch on the oversampling of the validation set (optional)
+    --accelerator \<device\> - Normally set to 'gpu' when training on a GPU
+    --devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
+    --max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
+    --arch \<arch\> - Network architecture to use, one of resnet50, densenet121, defaults to densenet121 (optional)
+    --single-frame-train - Trains based on a single still extracted at the moment of stop (plus the 19 previous stills) (optional)
+    --multi-frame-train - Trains based on the 3 channel multi still (plus the 19 previous stills) (optional)
+    --start-stop-train - Trains a network to classify stills into moving and not moving (optional)
+    --video-train - Trains a network based on videos (this will use the SlowFast architecture) (optional)
+    --use-bdd-and-carla - Indicates that the BDD and data should be combined (use with --carla and --bdd) (optional)
+    --carla \<percentage\> - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all) (optional)
+    --bdd \<percentage\> - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all) (optional)
+    --oversample-training - Switch on the oversampling of the training set (optional)
+    --oversample-validation - Switch on the oversampling of the validation set (optional)
 
 ## Testing / Understanding Models
 
@@ -352,5 +352,6 @@ The command below can be used as an example which will:
  * Change the fuel used when idling to 1.2249 ml/sec
  * Change the fuel used to start the engine to 9.7992 ml
  * Save the results CSV / ScoreCAM images to /mnt/some-dir-on-my-computer
+
 
     docker run -e MODEL=3 -e CAM=ScoreCAM -e FUEL_ML_PER_SEC=1.2249 -e FUEL_START=9.7992 -v /mnt/some-dir-on-my-computer:/mnt/results s5324494/project_coursework:latest
