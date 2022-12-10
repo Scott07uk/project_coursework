@@ -357,6 +357,10 @@ Command:
 
     docker run -e MODEL=3 -e CAM=ScoreCAM -e FUEL_ML_PER_SEC=1.2249 -e FUEL_START=9.7992 -v /mnt/some-dir-on-my-computer:/mnt/results s5324494/project_coursework:latest
 
+
 **WARNING**: Generating the CAM images can take a considerable amount of time as these are generated on the CPU
+
 **WARNING**: The CAM library (https://github.com/yiskw713/ScoreCAM) has a memory leak which limits the number of GradCAM images that can be generated, the script will eventually crash when generating GradCAM images.
+
 **WARNING**: SmoothGradCAMpp and GradCAMpp are included because the library (https://github.com/yiskw713/ScoreCAM) supports them out of the box, their use has not been tested.
+
