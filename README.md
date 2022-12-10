@@ -293,3 +293,64 @@ The following arguments can be provided:
 --start-fuel-use \<ml\> - The amount of fuel used in starting the engine
 --results-csv \<file-name\> - The name of a CSV file with the results of your test (optional)
 --stop \<stop-type\> - One of [always, never, results] Assume the engine always stops, never stops or stops based on the decision in the results file
+
+## Viewing Project Outputs via Docker
+Pre-built docker images are provided to view the output of the three most successful models against the test set. These contain all the models, code and data to run the test. The docker image runs all inference on the CPU to help simulate the lack of dedicated machine learning hardware which is a likly condition on running in a vehicle.
+
+### Building the Docker Image
+While the scripts are checked-in to git, it is not possible to build these directly from source as the data needs to be included. Data can be downloaded from: 
+
+<https://livebournemouthac-my.sharepoint.com/:f:/g/personal/s5324494_bournemouth_ac_uk/EsVR8lxUyG5JqQXMINiRf1QB7jJEK_9pK2R94r1idV-w1g?e=Tceqeo>
+
+Download the two files in the docker directory and place these in a "data" directory inside the project_coursework directory.  Docker images can then be built with (from the project_coursework directory):
+
+    docker build -f docker/results/Dockerfile .
+
+This will use an ubuntu 22.04 base image then:
+
+ * add the binary dependencies
+ * add the python dependencies
+ * copy test data
+ * copy trained models from source control models
+ * copy code from the src directory
+ * install a wrapper script
+ * set the run command to run the wrapper script
+
+### Pulling the Pre-Built Docker Image
+The pre-built docker image can be pulled using the following command:
+    
+    docker pull s5324494/project_coursework:latest
+
+This was built using the process mentioned above, but is deployed on docker hub for ease of use.
+
+### Running the Docker Image
+However the docker image was obtained, it can be run without arguments or environment variables with:
+
+    docker run \<image-id\>
+
+for example
+
+    docker run s5324494/project_coursework:latest
+
+This will run the most effective model, output the results for each record in the test set, then output the fuel consumption based on the Gas Compact Sedan (assuming the model is used). As a reference point the fuel consumption for always and never stopping will be output too.
+
+The following environment variables can be used to change the model, change the fuel consumption parameters and to output CAM images:
+
+    MODEL=1|2|3 - Used the best, second best or third best model
+    CAM=ScoreCAM|GradCAM|SmoothGradCAMpp|GradCAMpp - Output CAM images (default disabled)
+    FUEL_ML_PER_SEC=\<VALUE\> - The fuel burned per seconds in ml for an engine which is idling (defaults to 0.2020)
+    FUEL_START=\<VALUE\> - The fuel burned to start the engine in ml (defaults to 1.6160)
+
+To retrieve the CAM images (or the results CSV) a docker volume is required and should be mounted into:
+
+    /mnt/results
+
+The command below can be used as an example which will:
+
+ * Use the 3rd model
+ * Produce ScoreCAM images
+ * Change the fuel used when idling to 1.2249 ml/sec
+ * Change the fuel used to start the engine to 9.7992 ml
+ * Save the results CSV / ScoreCAM images to /mnt/some-dir-on-my-computer
+
+    docker run -e MODEL=3 -e CAM=ScoreCAM -e FUEL_ML_PER_SEC=1.2249 -e FUEL_START=9.7992 -v /mnt/some-dir-on-my-computer:/mnt/results s5324494/project_coursework:latest
