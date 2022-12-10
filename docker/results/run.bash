@@ -37,7 +37,7 @@ if [[ -z "${FUEL_START}" ]]; then
   FUEL_START=1.616
 fi
 
-python3 src/bdd-test.py --config cfg/docker.json --model models/$MODEL.cktp --arch $ARCH --csv --images still --test-set-file models/bdd-test-set.csv ${CAM_ARG} > /mnt/results/results.csv
+python3 src/bdd-test.py --config cfg/docker.json --model models/$MODEL.ckpt --arch $ARCH --csv --images still --test-set-file models/bdd-test-set.csv ${CAM_ARG} > /mnt/results/results.csv
 
 echo "Results from test"
 echo ""
