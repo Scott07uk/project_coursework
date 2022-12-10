@@ -70,13 +70,15 @@ TMP_DIR_SUFFIX = 'three-channel-video'
 #TMP_DIR_SUFFIX = 'video-shorts'
 TEMP_DIR = CONFIG.get_temp_dir() + '/' + TMP_DIR_SUFFIX + '/'
 KINETICS_STATS = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
-BATCH_SIZE = 3
 NUM_WORKERS = 6
 SIDE_SIZE = 256
 SLOWFAST_ALPHA = 4
 CROP_SIZE = 256
 NUM_FRAMES = 8
 CLIP_DURATION = 4
+BATCH_SIZE = 16 #Resnet50
+BATCH_SIZE = 12 #Densenet121
+BATCH_SIZE = 3 #EfficientNetB7
 
 def pre_process_video_list(videos: List[dict]):
   for video in videos:
