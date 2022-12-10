@@ -100,8 +100,8 @@ Run the following command:
 
 The following parameters can be added
 
-    --config \<path-to-config-file\>
-    --carla \<carla-server\>
+    --config <path-to-config-file>
+    --carla <carla-server>
 
 For example
 
@@ -145,7 +145,7 @@ BDD Data is extracting using the following python script:
 
 There are a number of parameters that you can provide to the script to control how the extract works
 
-    --config \<config-file\> - Defaults to cfg/kastria-local.json (optional)
+    --config <config-file> - Defaults to cfg/kastria-local.json (optional)
     --perform-extract - Extracts data from the source videos
     --process-all - If this is set then the videos will always be processed, if not set, it will only process missing ones (optional)
     --dense-optical-flow - Extract the dense optical flow files (optional)
@@ -220,9 +220,9 @@ This code is setup to use the EfficientNetB7 architecture. To change this to use
 
 The following arguments required by pytorch lightning should be added:
 
-    --accelerator \<device\> - Normally set to 'gpu' when training on a GPU
-    --devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
-    --max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
+    --accelerator <device> - Normally set to 'gpu' when training on a GPU
+    --devices <device-count> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
+    --max_epochs <epoch-count> - Set to 150 for our experiments to limit the number of epochs. (optional)
 
 ## Training Classification Models on Real-World Data
 
@@ -239,17 +239,17 @@ The same notes apply regarding changes to the code as per the regression models.
 
 The carla-extract script is used for training these models, it is suggested that the extract is completed before running any training (though you can run the extract and train at the same time). However, when training with BDD data the data must have been extracted first. The script src/carla-extract.py should be run with the following arguments:
 
-    --accelerator \<device\> - Normally set to 'gpu' when training on a GPU
-    --devices \<device-count\> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
-    --max_epochs \<epoch-count\> - Set to 150 for our experiments to limit the number of epochs. (optional)
-    --arch \<arch\> - Network architecture to use, one of resnet50, densenet121, defaults to densenet121 (optional)
+    --accelerator <device> - Normally set to 'gpu' when training on a GPU
+    --devices <device-count> - Normally set to 1 (though can be set to a higher number if multiple training devices are available)
+    --max_epochs <epoch-count> - Set to 150 for our experiments to limit the number of epochs. (optional)
+    --arch <arch> - Network architecture to use, one of resnet50, densenet121, defaults to densenet121 (optional)
     --single-frame-train - Trains based on a single still extracted at the moment of stop (plus the 19 previous stills) (optional)
     --multi-frame-train - Trains based on the 3 channel multi still (plus the 19 previous stills) (optional)
     --start-stop-train - Trains a network to classify stills into moving and not moving (optional)
     --video-train - Trains a network based on videos (this will use the SlowFast architecture) (optional)
     --use-bdd-and-carla - Indicates that the BDD and data should be combined (use with --carla and --bdd) (optional)
-    --carla \<percentage\> - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all) (optional)
-    --bdd \<percentage\> - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all) (optional)
+    --carla <percentage> - A number between 0 and 1 to indicate how much CARLA data to train with (0 = nothing, 1 = all) (optional)
+    --bdd <percentage> - A number between 0 and 1 to indicate how much BDD data to train with (0 = nothing, 1 = all) (optional)
     --oversample-training - Switch on the oversampling of the training set (optional)
     --oversample-validation - Switch on the oversampling of the validation set (optional)
 
@@ -267,24 +267,24 @@ This step generates the accuracy of the model and tests it against the test set.
 
 The following arguments can be provided:
 
-    --model \<file-name\> - The model file to test
-    --config \<config-file\> - The config file to use, defaults to cfg/kastria-local.json (optional)
+    --model <file-name> - The model file to test
+    --config <config-file> - The config file to use, defaults to cfg/kastria-local.json (optional)
     --regression - Should test a regression model rather than a classification model (defaults to classification) (optional)
-    --images \<image-type\> - One of: [still, multi-still, video] depending on what type of images you want to test with
-    --arch \<arch\> - One of [resnet50, densenet121, efficientnet_b7, slowfast] (slowfast can only be used with --images video), the architecture of the model
+    --images <image-type> - One of: [still, multi-still, video] depending on what type of images you want to test with
+    --arch <arch> - One of [resnet50, densenet121, efficientnet_b7, slowfast] (slowfast can only be used with --images video), the architecture of the model
     --csv - Output the results in CSV format rather than in human readable format (default is human readable) (optional)
-    --cam \<cam-type\> - One of [GradCAM, ScoreCAM, SmoothGradCAMpp, GradCAMpp] Generates CAM images (only GradCAM and ScoreCAM have been tested).  NOTE a bug exists with GradCAM in the library https://github.com/yiskw713/ScoreCAM, GradCAM has a memory leak and will crash when memory runs out. (optional)
+    --cam <cam-type> - One of [GradCAM, ScoreCAM, SmoothGradCAMpp, GradCAMpp] Generates CAM images (only GradCAM and ScoreCAM have been tested).  NOTE a bug exists with GradCAM in the library https://github.com/yiskw713/ScoreCAM, GradCAM has a memory leak and will crash when memory runs out. (optional)
 
 Example (assuming Linux style command line):
 
-    python src/bdd-test.py --model models/my-model.ckpt --images still --csv --cam ScoreCAM >> results.csv
+    python src/bdd-test.py --model models/my-model.ckpt --images still --csv --cam ScoreCAM > results.csv
 
 This will write the results to CSV file called results.csv. Once the results have been generated they should be saved as a CSV should you want to use the next process.
 
 ### Step 2: Examine Fuel Usage
 This step uses the output from step 1 to calculate the fuel usage:
 
-src/bdd-valid-info.py
+    src/bdd-valid-info.py
 
 The following arguments can be provided:
 
