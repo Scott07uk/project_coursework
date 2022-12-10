@@ -288,11 +288,11 @@ src/bdd-valid-info.py
 
 The following arguments can be provided:
 
---config \<config-file\> - The config file to use, detauls to cfg/kastria-local.json (optional)
---idle-fuel-use \<ml-per-second\> - The amount of fuel (ml) your target vehicle burns per second when idling
---start-fuel-use \<ml\> - The amount of fuel used in starting the engine
---results-csv \<file-name\> - The name of a CSV file with the results of your test (optional)
---stop \<stop-type\> - One of [always, never, results] Assume the engine always stops, never stops or stops based on the decision in the results file
+    --config <config-file> - The config file to use, detauls to cfg/kastria-local.json (optional)
+    --idle-fuel-use <ml-per-second> - The amount of fuel (ml) your target vehicle burns per second when idling
+    --start-fuel-use <ml> - The amount of fuel used in starting the engine
+    --results-csv <file-name> - The name of a CSV file with the results of your test (optional)
+    --stop <stop-type> - One of [always, never, results] Assume the engine always stops, never stops or stops based on the decision in the results file
 
 ## Viewing Project Outputs via Docker
 Pre-built docker images are provided to view the output of the three most successful models against the test set. These contain all the models, code and data to run the test. The docker image runs all inference on the CPU to help simulate the lack of dedicated machine learning hardware which is a likly condition on running in a vehicle.
@@ -326,7 +326,7 @@ This was built using the process mentioned above, but is deployed on docker hub 
 ### Running the Docker Image
 However the docker image was obtained, it can be run without arguments or environment variables with:
 
-    docker run \<image-id\>
+    docker run <image-id>
 
 for example
 
