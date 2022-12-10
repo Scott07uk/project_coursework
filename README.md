@@ -353,5 +353,6 @@ The command below can be used as an example which will:
  * Change the fuel used to start the engine to 9.7992 ml
  * Save the results CSV / ScoreCAM images to /mnt/some-dir-on-my-computer
 
+Command:
 
     docker run -e MODEL=3 -e CAM=ScoreCAM -e FUEL_ML_PER_SEC=1.2249 -e FUEL_START=9.7992 -v /mnt/some-dir-on-my-computer:/mnt/results s5324494/project_coursework:latest
