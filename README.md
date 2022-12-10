@@ -336,10 +336,10 @@ This will run the most effective model, output the results for each record in th
 
 The following environment variables can be used to change the model, change the fuel consumption parameters and to output CAM images:
 
-    MODEL=1|2|3 - Used the best, second best or third best model
-    CAM=ScoreCAM|GradCAM|SmoothGradCAMpp|GradCAMpp - Output CAM images (default disabled)
-    FUEL_ML_PER_SEC=\<VALUE\> - The fuel burned per seconds in ml for an engine which is idling (defaults to 0.2020)
-    FUEL_START=\<VALUE\> - The fuel burned to start the engine in ml (defaults to 1.6160)
+    MODEL=[1|2|3] - Used the best, second best or third best model
+    CAM=[ScoreCAM|GradCAM|SmoothGradCAMpp|GradCAMpp] - Output CAM images (default disabled)
+    FUEL_ML_PER_SEC=<VALUE> - The fuel burned per seconds in ml for an engine which is idling (defaults to 0.2020)
+    FUEL_START=<VALUE> - The fuel burned to start the engine in ml (defaults to 1.6160)
 
 To retrieve the CAM images (or the results CSV) a docker volume is required and should be mounted into:
 
