@@ -3,7 +3,7 @@ FROM ubuntu:22.04
 RUN apt-get update
 RUN apt-get install -y python3 python3-pip ffmpeg bzip2
 
-RUN pip3 install opencv-contrib-python postgres pillow pytorch_lightning torchvision ffmpeg-python pytorchvideo pandas
+RUN pip3 install opencv-contrib-python postgres pillow pytorch_lightning==1.6.4 torchvision==0.12.0 ffmpeg-python pytorchvideo pandas
 
 WORKDIR /usr/local/project
 
@@ -21,3 +21,4 @@ ADD cfg /usr/local/project/cfg
 ADD docker/results/run.bash /usr/local/project/
 
 CMD /bin/bash run.bash
+
