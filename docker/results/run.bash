@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 mkdir /mnt/results
 
 if [[ -z "${MODEL}" ]]; then
@@ -9,10 +10,20 @@ fi
 
 echo "Going to test model ${MODEL}"
 ARCH="resnet50"
+IMG_TYPE="still"
 
 case "${MODEL}" in
-  "1" | "2" | "3")
+  "1")
     ARCH="resnet50"
+    IMG_TYPE="still"
+    ;;
+  "2")
+    ARCH="resnet50"
+    IMG_TYPE="multi-still"
+    ;;
+  "3")
+    ARCH="resnet50"
+    IMG_TYPE="still"
     ;;
   *)
     echo "${MODEL} is not a valid model"
@@ -37,7 +48,7 @@ if [[ -z "${FUEL_START}" ]]; then
   FUEL_START=1.616
 fi
 
-python3 src/bdd-test.py --config cfg/docker.json --model models/$MODEL.ckpt --arch $ARCH --csv --images still --test-set-file models/bdd-test-set.csv ${CAM_ARG} > /mnt/results/results.csv
+python3 src/bdd-test.py --config cfg/docker.json --model models/$MODEL.ckpt --arch $ARCH --csv --images $IMG_TYPE --test-set-file models/bdd-test-set.csv ${CAM_ARG} > /mnt/results/results.csv
 
 echo "Results from test"
 echo ""
